@@ -3,7 +3,7 @@ const drawProgressBar = (progress: Number) => {
     const filledWidth = Math.floor(Number(progress) / 100 * barWidth);
     const emptyWidth = barWidth - filledWidth;
     const progressBar = '+'.repeat(filledWidth) + '-'.repeat(emptyWidth);
-    return `[${progressBar}] ${progress}%`;
+    return `[${progressBar}] ${progress.toFixed(2)}%`;
 }
 
 export default drawProgressBar;

@@ -51,13 +51,14 @@ async function processVideoDownload(
             } else {
                 logger({message: `Downloaded`, emoji: "download"});
             }
-            await tgModel.deleteMessage(chatId, progressBarMessage);
         }
     }
-
+    await tgModel.editMessage(chatId, progressBarMessage, "finished downloading video. Please wait...");
+    
     const videoBuffer = Buffer.concat(chunks);
     logger({message: "Finished downloading video.", emoji: "ok"});
     await tgModel.sendVideo(chatId, videoBuffer);
+    await tgModel.deleteMessage(chatId, progressBarMessage);
 }
 
 export async function captureVideoRequests(

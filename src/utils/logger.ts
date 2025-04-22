@@ -16,6 +16,7 @@ const textColor = {
     cyan: "\x1b[36m",
     white: "\x1b[37m",
     gray: "\x1b[90m",
+    reset: "\x1b[0m",
 };
 
 interface LoggerOptions {
@@ -31,19 +32,30 @@ const logger = ({
     emoji,
     replace,
     error,
-    pickColor = "green",
+    pickColor = "yellow",
 }: LoggerOptions) => {
     let messageR: string = "";
 
-    if (emoji && typeOfEmoji[emoji]) {
-        messageR += `${typeOfEmoji[emoji]} `;
-    }
-    messageR += `${
-        textColor[pickColor]
-    }[${new Date().toISOString()}]:\x1b[0m ${message}`;
+    const now =
+        new Date().toISOString().slice(0, 10) +
+        " " +
+        new Date().toLocaleTimeString("en-US", { hour12: false });
+
+    const color = textColor[pickColor] || textColor.reset;
+
+    if (emoji && typeOfEmoji[emoji]) messageR += `${typeOfEmoji[emoji]}`;
+
+    messageR += `${textColor[pickColor]}[${now}]:${textColor.reset} `;
 
     if (error) {
         messageR += `\n${textColor["red"]}Error: ${error}\x1b[0m`;
+    }
+
+    if (message.split(":").length > 1) {
+        messageR += `${textColor.blue}${message.split(":")[0]}:${textColor.reset}${message.split(":")[1]}`;
+    }
+    else {
+        messageR += message;
     }
 
     if (replace) {
@@ -54,8 +66,6 @@ const logger = ({
         console.log("\n" + messageR);
     }
 };
-
-
 
 export default logger;
 export { typeOfEmoji, textColor };

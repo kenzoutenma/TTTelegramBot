@@ -19,7 +19,7 @@ async function main(): Promise<void> {
 
                     if (!chatId) continue;
 
-                    logger({ message: `[Message #${offset}] From chat ${chatId}: ${messageText}`})
+                    logger({ message: `Message #${offset} From chat ${chatId}: ${messageText}`})
 
                     if (messageText && messageText.includes("tiktok.com")) {
                         await captureVideoRequests(

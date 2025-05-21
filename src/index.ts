@@ -2,6 +2,7 @@ import tgModel from "./controller/telegram_controller";
 import { captureVideoRequests } from "./service/tt_service";
 import logger from "./utils/logger";
 import { TelegramResponse } from "../@types/TelegramResponse";
+import parseMessage from "./utils/parseUserMessage";
 
 async function main(): Promise<void> {
     console.log("✅ Bot started");
@@ -20,11 +21,17 @@ async function main(): Promise<void> {
                     if (!chatId) continue;
 
                     logger({ message: `Message #${offset} From chat ${chatId}: ${messageText}`})
-
-                    if (messageText && messageText.includes("tiktok.com")) {
+                    const parsedMessage = parseMessage(messageText)
+                    console.log("\n\n", parsedMessage, "\n\n")
+                    if (parsedMessage && parsedMessage.url.includes("tiktok.com")) {
                         await captureVideoRequests(
-                            messageText,
-                            chatId.toString()
+                            parsedMessage.url,
+                            chatId.toString(),
+                            parsedMessage.startTime,
+                            parsedMessage.duration,
+                            parsedMessage.cropTop,
+                            parsedMessage.cropBottom,
+                            parsedMessage.asGif,
                         );
                     } else {
                         await tgModel.sendMessage(

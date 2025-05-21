@@ -2,11 +2,17 @@ import { Browser, BrowserContext, chromium, Page, Request } from "playwright";
 import tgModel from "../controller/telegram_controller";
 import logger, { typeOfEmoji } from "../utils/logger";
 import drawProgressBar from "../utils/progressBar";
+import ve from "../utils/videoReEncoder"
 
 async function processVideoDownload(
     videoUrl: string,
     chatId: string,
-    cookies: any[]
+    cookies: any[],
+    start?: string,
+    duration?: string,
+    cropTop?: string,
+    cropBottom?: string,
+    asGif?: boolean,
 ) {
     const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 
@@ -56,14 +62,32 @@ async function processVideoDownload(
     await tgModel.editMessage(chatId, progressBarMessage, "finished downloading video. Please wait...");
     
     const videoBuffer = Buffer.concat(chunks);
-    logger({message: "Finished downloading video.", emoji: "ok"});
-    await tgModel.sendVideo(chatId, videoBuffer);
+
+    try {
+        const end = await ve.reencodeVideo(videoBuffer, start, duration, cropTop, cropBottom, asGif)
+        if (asGif) {
+            await tgModel.sendDocument(chatId, end, "video.gif")
+        }
+        else {
+            await tgModel.sendVideo(chatId, end);
+        }
+    }
+    catch (e) {
+        logger({message: "Finished downloading video.", emoji: "ok"});
+        console.error(e)
+    }
+    // await tgModel.sendVideo(chatId, videoBuffer);
     await tgModel.deleteMessage(chatId, progressBarMessage);
 }
 
 export async function captureVideoRequests(
     url: string,
-    chatId: string
+    chatId: string,
+    start?: string,
+    duration?: string,
+    cropTop?: string,
+    cropBottom?: string,
+    asGif?: boolean,
 ): Promise<void> {
     const browser: Browser = await chromium.launch({ headless: true });
     const context: BrowserContext = await browser.newContext();
@@ -95,7 +119,7 @@ export async function captureVideoRequests(
     const cookies = await context.cookies(targetUrl);
 
     try {
-        await processVideoDownload(targetUrl, chatId, cookies);
+        await processVideoDownload(targetUrl, chatId, cookies, start, duration, cropTop, cropBottom, asGif);
     } catch (err) {
         logger({message: "Error during video download:", error: err, pickColor: "red", emoji: "error"});
         await tgModel.sendMessage(chatId, `${typeOfEmoji["error"]} Error during video download.`);

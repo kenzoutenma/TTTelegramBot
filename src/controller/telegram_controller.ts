@@ -120,6 +120,51 @@ class TelegramModel {
             if (error.response) {
                 logger({
                     message: "Telegram responded with error",
+                    error: JSON.stringify(error.response.data, null, 2),
+                    emoji: "error",
+                    pickColor: "red",
+                });
+            } else {
+                logger({
+                    message: "Axios error",
+                    error: error.message,
+                    emoji: "error",
+                    pickColor: "red",
+                });
+            }
+            throw error;
+        }
+    }
+    
+    async sendDocument(
+        chatId: string | number,
+        fileBuffer: Buffer,
+        filename: string = "video.mp4"
+    ): Promise<any> {
+        const url = `${this.baseUrl}sendDocument`;
+        const form = new FormData();
+    
+        const stream = new PassThrough();
+        stream.end(fileBuffer);
+    
+        form.append("chat_id", chatId.toString());
+        form.append("document", stream, {
+            filename,
+            contentType: "video/mp4",
+            knownLength: fileBuffer.length,
+        });
+    
+        try {
+            const response = await axios.post(url, form, {
+                headers: form.getHeaders(),
+                maxBodyLength: Infinity,
+            });
+    
+            return response.data;
+        } catch (error: any) {
+            if (error.response) {
+                logger({
+                    message: "Telegram responded with error",
                     error: error.response.data,
                     emoji: "error",
                     pickColor: "red",
@@ -135,6 +180,7 @@ class TelegramModel {
             throw error;
         }
     }
+    
 }
 
 const args = process.argv.slice(2);

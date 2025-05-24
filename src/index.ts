@@ -20,10 +20,14 @@ async function main(): Promise<void> {
 
                     if (!chatId) continue;
 
-                    logger({ message: `Message #${offset} From chat ${chatId}: ${messageText}`})
-                    const parsedMessage = parseMessage(messageText)
-                    console.log("\n\n", parsedMessage, "\n\n")
-                    if (parsedMessage && parsedMessage.url.includes("tiktok.com")) {
+                    logger({
+                        message: `Message #${offset} From chat ${chatId}: ${messageText}`,
+                    });
+                    const parsedMessage = parseMessage(messageText);
+                    if (
+                        parsedMessage &&
+                        parsedMessage.url.includes("tiktok.com")
+                    ) {
                         await captureVideoRequests(
                             parsedMessage.url,
                             chatId.toString(),
@@ -31,7 +35,16 @@ async function main(): Promise<void> {
                             parsedMessage.duration,
                             parsedMessage.cropTop,
                             parsedMessage.cropBottom,
-                            parsedMessage.asGif,
+                            parsedMessage.asGif
+                        );
+                    } else if (messageText.includes("/show")) {
+                        await tgModel.sendMessage(
+                            chatId,
+                            "<code>-start</code> > <i>Timing from video will start</i>\n" +
+                                "<code>-duration</code> > <i>Duration of video</i>\n" +
+                                "<code>-top</code> > <i>Value in pixels to crop from top</i>\n" +
+                                "<code>-bot</code> > <i>Value in pixels to crop from bottom</i>\n" +
+                                "<code>-gif</code> > <i>To send video as a gif</i>\n"
                         );
                     } else {
                         await tgModel.sendMessage(

@@ -29,6 +29,7 @@ class TelegramModel {
         const params = new URLSearchParams({
             chat_id: chatId.toString(),
             text,
+            parse_mode: "HTML",
         });
 
         const response = await fetch(url, {
@@ -89,7 +90,7 @@ class TelegramModel {
             replace: true,
         });
 
-        return await response.json();
+        return await messageId;
     }
 
     async sendVideo(

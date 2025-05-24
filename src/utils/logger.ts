@@ -27,6 +27,31 @@ interface LoggerOptions {
     error?: any;
 }
 
+const getCallerTrace = () => {
+    const err = new Error();
+    const stackLines = err.stack?.split("\n") || [];
+
+    const callerLine = stackLines.find(
+        (line) =>
+            !line.includes("logger") &&
+            (line.includes("at ") || line.includes("file:"))
+    );
+    if (!callerLine) return "";
+
+    const match =
+        callerLine.match(/\((.*):(\d+):\d+\)$/) ||
+        callerLine.match(/at (.*):(\d+):\d+$/);
+    const fullPath = match?.[1];
+    const lineNumber = match?.[2];
+
+    if (!fullPath) return "";
+
+    const projectRoot = process.cwd();
+    const relativePath = fullPath.replace(projectRoot, "").replace(/^\/+/, "");
+
+    return `${relativePath}:${lineNumber}`;
+};
+
 const logger = ({
     message,
     emoji,
@@ -45,23 +70,25 @@ const logger = ({
 
     if (emoji && typeOfEmoji[emoji]) messageR += `${typeOfEmoji[emoji]}`;
 
-    messageR += `${textColor[pickColor]}[${now}]:${textColor.reset} `;
+    const tracePath = getCallerTrace();
+    messageR += `${color}[${now}] ${tracePath}:${textColor.reset} `;
 
     if (error) {
         messageR += `\n${textColor["red"]}Error: ${error}\x1b[0m`;
     }
 
     if (message.split(":").length > 1) {
-        messageR += `${textColor.blue}${message.split(":")[0]}:${textColor.reset}${message.split(":")[1]}`;
-    }
-    else {
+        messageR += `${textColor.blue}${message.split(":")[0]}:${
+            textColor.reset
+        }${message.split(":")[1]}`;
+    } else {
         messageR += message;
     }
 
     if (replace) {
         process.stdout.clearLine(-1);
         process.stdout.cursorTo(0);
-        process.stdout.write(`Progress: ${messageR}`);
+        process.stdout.write(`${messageR}`);
     } else {
         console.log("\n" + messageR);
     }

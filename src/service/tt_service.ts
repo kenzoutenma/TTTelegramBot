@@ -66,14 +66,14 @@ async function processVideoDownload(
     
     try {
         if (asGif) {
-            logger({message: "\t\t gif"})
+            logger({message: `-gif ${asGif} -top ${cropTop} -bot ${cropBottom} -start ${start} -duration ${duration}`})
             await tgModel.editMessage(chatId, progressBarMessage, "Encoding your gif...");
             const end = await ve.reencodeVideo(videoBuffer, start, duration, cropTop, cropBottom, asGif)
             await tgModel.editMessage(chatId, progressBarMessage, "Sending your gif...");
             await tgModel.sendDocument(chatId, end, "video.gif")
         }
         else {
-            logger({message: "\t\t video"})
+            logger({message: `-video ${asGif} -top ${cropTop} -bot ${cropBottom} -start ${start} -duration ${duration}`})
             await tgModel.editMessage(chatId, progressBarMessage, "Encoding your video...");
             const end = await ve.reencodeVideo(videoBuffer, start, duration, cropTop, cropBottom, asGif)
             await tgModel.editMessage(chatId, progressBarMessage, "Sending your video...");

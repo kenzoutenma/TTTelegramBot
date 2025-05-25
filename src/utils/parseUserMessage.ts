@@ -35,8 +35,9 @@ function parseMessage(text: string): ParsedMessage | null {
         return `00:00:${padSeconds(parts[0])}`;
     };
 
-    const cropTop = text.match(/-top\s+([0-9:.]+)/);
-    const cropBot = text.match(/-bot\s+([0-9:.]+)/);
+    const byTwoSide = text.match(/-vertical\s+([0-9:.]+)/);
+    const cropTop = text.match(/-top\s+([0-9:.]+)/) || byTwoSide;
+    const cropBot = text.match(/-bot\s+([0-9:.]+)/) || byTwoSide;
     const gifFlag = /-gif\b/.test(text);
 
     return {

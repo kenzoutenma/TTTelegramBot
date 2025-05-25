@@ -42,17 +42,23 @@ async function reencodeVideo(
             const gifPath = `${outputPath}_${fps}.gif`;
 
             try {
+                const paletteFilters = [
+                    ...filters,
+                    `scale=240:-1:flags=lanczos`,
+                    `fps=${fps}`,
+                    "palettegen",
+                ].join(",");
+
                 await new Promise((res, rej) => {
                     ffmpeg(inputPath)
                         .output(palettePath)
-                        .outputOptions([
-                            "-vf",
-                            `scale=240:-1:flags=lanczos,fps=${fps},palettegen`,
-                        ])
+                        .outputOptions(["-vf", paletteFilters])
                         .on("end", res)
                         .on("error", rej)
                         .run();
                 });
+
+                const gifFilters = [...filters, `scale=240:-1:flags=lanczos`, `fps=${fps}`].join(",");
 
                 await new Promise((res, rej) => {
                     let gifStarter = ffmpeg(inputPath)
@@ -60,12 +66,13 @@ async function reencodeVideo(
                         .output(gifPath)
                         .outputOptions([
                             "-lavfi",
-                            `scale=240:-1:flags=lanczos,fps=${fps} [x]; [x][1:v] paletteuse`,
+                            `[0:v]${gifFilters}[x];[x][1:v]paletteuse`,
                         ])
                         .format("gif")
                         .on("end", res)
-                        .on("error", rej)
-                    if (startTime) gifStarter = gifStarter.setStartTime(startTime);
+                        .on("error", rej);
+                    if (startTime)
+                        gifStarter = gifStarter.setStartTime(startTime);
                     if (duration) gifStarter = gifStarter.setDuration(duration);
                     gifStarter.run();
                 });
@@ -73,6 +80,9 @@ async function reencodeVideo(
                 const resultBuffer = await readFile(gifPath);
                 if (resultBuffer.byteLength < 10 * 1024 * 1024) {
                     return resultBuffer;
+                }
+                else {
+                    logger({message: `${resultBuffer.byteLength} < ${10 * 1024 * 1024}`})
                 }
             } catch (err) {
                 logger({

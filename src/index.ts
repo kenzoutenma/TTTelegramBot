@@ -3,10 +3,11 @@ import { captureVideoRequests } from "./service/tt_service";
 import logger from "./utils/logger";
 import { TelegramResponse } from "../@types/TelegramResponse";
 import parseMessage from "./utils/parseUserMessage";
-
+import { helpMessage } from "./view/help";
 async function main(): Promise<void> {
     console.log("✅ Bot started");
     let offset = 0;
+    const processedMessages = new Set<string>();
 
     async function pullUpdates(): Promise<void> {
         try {
@@ -23,11 +24,22 @@ async function main(): Promise<void> {
                     logger({
                         message: `Message #${offset} From chat ${chatId}: ${messageText}`,
                     });
+
                     const parsedMessage = parseMessage(messageText);
+
                     if (
                         parsedMessage &&
                         parsedMessage.url.includes("tiktok.com")
                     ) {
+                        const messageKey = `${parsedMessage.url}_${content.update_id}`;
+
+                        if (processedMessages.has(messageKey)) {
+                            logger({
+                                message: `Duplicate skipped: ${messageKey}`,
+                            });
+                            continue;
+                        }
+
                         await captureVideoRequests(
                             parsedMessage.url,
                             chatId.toString(),
@@ -38,14 +50,7 @@ async function main(): Promise<void> {
                             parsedMessage.asGif
                         );
                     } else if (messageText.includes("/show")) {
-                        await tgModel.sendMessage(
-                            chatId,
-                            "<code>-start</code> > <i>Timing from video will start</i>\n" +
-                                "<code>-duration</code> > <i>Duration of video</i>\n" +
-                                "<code>-top</code> > <i>Value in pixels to crop from top</i>\n" +
-                                "<code>-bot</code> > <i>Value in pixels to crop from bottom</i>\n" +
-                                "<code>-gif</code> > <i>To send video as a gif</i>\n"
-                        );
+                        await tgModel.sendMessage(chatId, helpMessage);
                     } else {
                         await tgModel.sendMessage(
                             chatId,

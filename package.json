@@ -2,16 +2,22 @@
   "name": "tt-node",
   "version": "1.0.0",
   "main": "index.js",
+  "type": "module",
   "scripts": {
+    "test": "jest",
+    "lint": "eslint",
+    "build": "tsc && tsc-alias",
+    "start": "node dist/index.js",
     "start:dev": "npx nodemon -token your:token"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@tsconfig/node20": "^20.1.6",
     "@types/node": "^22.14.1",
     "nodemon": "^3.1.9",
-    "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.16",
     "typescript": "^5.8.3"
   },
   "dependencies": {

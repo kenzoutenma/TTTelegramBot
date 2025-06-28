@@ -1,0 +1,14 @@
+
+services:
+  server:
+    build:
+      context: .
+      args:
+        TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+    ports:
+      - 80:80

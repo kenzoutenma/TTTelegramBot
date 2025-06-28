@@ -41,10 +41,12 @@ const getCallerTrace = () => {
     const match =
         callerLine.match(/\((.*):(\d+):\d+\)$/) ||
         callerLine.match(/at (.*):(\d+):\d+$/);
-    const fullPath = match?.[1];
+    let fullPath = match?.[1];
     const lineNumber = match?.[2];
 
     if (!fullPath) return "";
+
+    fullPath = fullPath.replace(/^file:\/\//, "/");
 
     const projectRoot = process.cwd();
     const relativePath = fullPath.replace(projectRoot, "").replace(/^\/+/, "");

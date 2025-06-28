@@ -1,70 +1,69 @@
-import tgModel from "./controller/telegram_controller";
-import { captureVideoRequests } from "./service/tt_service";
 import logger from "./utils/logger";
-import { TelegramResponse } from "../@types/TelegramResponse";
-import parseMessage from "./utils/parseUserMessage";
 import { helpMessage } from "./view/help";
+import TelegramController from "./controller/telegram_controller";
+import TikTokService from "./service/tt_service";
+
+const args = process.argv.slice(2);
+let tokenFromFlag: string | undefined = undefined;
+
+args.forEach((arg, index) => {
+	if (arg === "-token" && args[index + 1]) {
+		tokenFromFlag = args[index + 1];
+	}
+});
+
+const botToken: string = process.env.TELEGRAM_BOT_TOKEN || tokenFromFlag || "";
+
+if (!botToken) {
+	throw new Error(
+		"Telegram bot token is required. Please set it in the environment variable TELEGRAM_BOT_TOKEN or pass it as a command line argument with -token"
+	);
+}
+
+const TG_Controller = new TelegramController(botToken);
+const TT_Service = new TikTokService(TG_Controller)
+
 async function main(): Promise<void> {
-    console.log("✅ Bot started");
-    let offset = 0;
-    const processedMessages = new Set<string>();
+	console.log(`✅ Bot ${botToken} started`);
 
-    async function pullUpdates(): Promise<void> {
-        try {
-            const update: TelegramResponse = await tgModel.getUpdates(offset);
+	const processedMessages = new Set<string>();
+	
+	await TG_Controller.start(async (content) => {
+		if (!content?.message?.url) {
+			TG_Controller.sendMessage(content.chatId, helpMessage)
+			return
+		}
 
-            if (update.result && Array.isArray(update.result)) {
-                for (const content of update.result) {
-                    const chatId = content.message?.chat?.id;
-                    const messageText = content.message?.text;
-                    offset = content.update_id + 1;
+		const messageKey = `${content.message.url}_${content.offset}`;
 
-                    if (!chatId) continue;
+		if (processedMessages.has(messageKey)) {
+			logger({
+				message: `Duplicate skipped: ${messageKey}`,
+			});
+			return;
+		}
+		processedMessages.add(messageKey);
 
-                    logger({
-                        message: `Message #${offset} From chat ${chatId}: ${messageText}`,
-                    });
-
-                    const parsedMessage = parseMessage(messageText);
-
-                    if (
-                        parsedMessage &&
-                        parsedMessage.url.includes("tiktok.com")
-                    ) {
-                        const messageKey = `${parsedMessage.url}_${content.update_id}`;
-
-                        if (processedMessages.has(messageKey)) {
-                            logger({
-                                message: `Duplicate skipped: ${messageKey}`,
-                            });
-                            continue;
-                        }
-
-                        await captureVideoRequests(
-                            parsedMessage.url,
-                            chatId.toString(),
-                            parsedMessage.startTime,
-                            parsedMessage.duration,
-                            parsedMessage.cropTop,
-                            parsedMessage.cropBottom,
-                            parsedMessage.asGif
-                        );
-                    } else if (messageText.includes("/show")) {
-                        await tgModel.sendMessage(chatId, helpMessage);
-                    } else {
-                        await tgModel.sendMessage(
-                            chatId,
-                            "❌ No TikTok link found in the message."
-                        );
-                    }
-                }
-            }
-        } catch (error) {
-            console.error("Polling error:", error);
+		const video = await TT_Service.captureVideoRequests(
+			content.message.url,
+			content.chatId.toString(),
+			content.message.startTime,
+			content.message.duration,
+			content.message.cropTop,
+			content.message.cropBottom,
+			content.message.asGif
+		);
+        if(!video) return
+        
+        switch (video.type) {
+            case "gif":
+                TG_Controller.sendDocument(video.chatId, video.video, video.video_name)
+				break;
+            case "video":
+                TG_Controller.sendVideo(video.chatId, video.video)
+				break;
         }
-    }
-
-    setInterval(pullUpdates, 1000);
+	})
 }
 
 main().catch(console.error);

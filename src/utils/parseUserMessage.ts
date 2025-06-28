@@ -1,13 +1,4 @@
-interface ParsedMessage {
-    url: string;
-    startTime?: string;
-    duration?: string;
-    cropTop?: string;
-    cropBottom?: string;
-    asGif?: boolean;
-}
-
-function parseMessage(text: string): ParsedMessage | null {
+function parseMessage(text: string): ParsedMessageString | null {
     const urlMatch = text.match(/https?:\/\/\S+/);
     if (!urlMatch) return null;
 

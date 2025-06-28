@@ -4,35 +4,55 @@
 Node.js bot for search and download video from TikTok
 
 
-## Installation
+### Installation
 
-Install repository
+Install repository with
 
 ```bash
 git clone https://github.com/AnswerShy/TTTelegramBot.git
 ```
 
-## Start
+### Start
 
-To start bot you need to get Telegram API Token in [@BotFather](https://t.me/BotFather)
+To start bot you need to get Telegram API Token in [@BotFather](https://t.me/BotFather). 
 
-### Option 1
 
-Insert token in launch option when start bot:
-```bash
-npx nodemon -token your:token
-```
-### Option 2
+#### > Option 1 [Docker]
 
-Create *.env* file in root of repository with parameter
+Create *.env* file in root of repository or set it in CLI:
 ```bash
 TELEGRAM_BOT_TOKEN="your:telegram-token"
+```
+After creating *.env* you can start docker container
+```bash
+docker compose -f 'compose.yaml' up -d --build 'server'
+```
+
+#### > Option 2 [With npm]
+
+
+First of all install all dependencies
+```bash
+npm install
+```
+Build app with
+```bash
+npm run build
+```
+And start it
+```bash
+npm run start
+```
+
+Insert telegram token like in first option. If you *dont want* to set .env do this instead: 
+```bash
+ npm run start -- -token your:token 
 ```
 
 ## Way to send video
 
 
-send to bot link:
+Send to bot messsage with link:
 ```bash
 http://www.tiktok.com/*video*
 ```

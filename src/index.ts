@@ -2,6 +2,7 @@ import logger from "./utils/logger";
 import { helpMessage } from "./view/help";
 import TelegramController from "./controller/telegram_controller";
 import TikTokService from "./service/tt_service";
+import VideoEncodeClass from "./service/video-encode";
 
 const args = process.argv.slice(2);
 let tokenFromFlag: string | undefined = undefined;
@@ -21,17 +22,17 @@ if (!botToken) {
 }
 
 const TG_Controller = new TelegramController(botToken);
-const TT_Service = new TikTokService(TG_Controller)
+const TT_Service = new TikTokService(TG_Controller);
 
 async function main(): Promise<void> {
 	console.log(`✅ Bot ${botToken} started`);
 
 	const processedMessages = new Set<string>();
-	
-	await TG_Controller.start(async (content) => {
+
+	await TG_Controller.start(async (content: ParsedTelegramUpdate) => {
 		if (!content?.message?.url) {
-			TG_Controller.sendMessage(content.chatId, helpMessage)
-			return
+			TG_Controller.sendMessage(content.chatId, helpMessage);
+			return;
 		}
 
 		const messageKey = `${content.message.url}_${content.offset}`;
@@ -47,23 +48,23 @@ async function main(): Promise<void> {
 		const video = await TT_Service.captureVideoRequests(
 			content.message.url,
 			content.chatId.toString(),
-			content.message.startTime,
-			content.message.duration,
-			content.message.cropTop,
-			content.message.cropBottom,
-			content.message.asGif
 		);
-        if(!video) return
-        
-        switch (video.type) {
-            case "gif":
-                TG_Controller.sendDocument(video.chatId, video.video, video.video_name)
-				break;
-            case "video":
-                TG_Controller.sendVideo(video.chatId, video.video)
-				break;
-        }
-	})
+		if (!video) return;
+
+		const { chatId, message } = content;
+		const { cropTop, cropBottom, startTime, duration } = message;
+
+		const encodeVideo = await new VideoEncodeClass({videoBuffer: video, chatId: chatId.toString(), cropTop, cropBottom, start: startTime, duration})
+
+		if (content.message.asGif) {
+			const save = await encodeVideo.downloadGif()
+			TG_Controller.sendDocument(chatId.toString(), save.video, save.video_name);
+		}
+		else {
+			const save = await encodeVideo.downloadVideo()
+			TG_Controller.sendVideo(chatId.toString(), save.video);
+		}
+	});
 }
 
 main().catch(console.error);

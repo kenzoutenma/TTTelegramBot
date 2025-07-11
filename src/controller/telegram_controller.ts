@@ -33,7 +33,7 @@ class TelegramController {
 						if (!chatId) continue;
 
 						const messageText = content.message?.text;
-						const parsedMessage = parseMessage(messageText);
+						const parsedMessage = parseMessage(messageText) as ParsedMessageString;
 
 						await callback({
 							chatId,

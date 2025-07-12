@@ -1,13 +1,11 @@
-import TikTokService from "#/service/tt_service";
 import VideoEncodeClass from "#/service/video-encode";
 import { writeFile } from "fs/promises";
 import { join } from "path";
+import { TT_Service, userID } from "#/configs/test-config";
 
-const TT_Service = new TikTokService();
 let buffer: Buffer<ArrayBufferLike> | undefined;
-const chatID = "1221999428";
 
-describe("first", () => {
+describe("TT", () => {
 	it(
 		"should return video in buffer",
 		async () => {
@@ -24,7 +22,7 @@ describe("first", () => {
 			const outputPath = join(process.cwd(), "test_output.mp4");
 			console.log("CWD:", process.cwd());
 
-			const encoder = new VideoEncodeClass({ videoBuffer: buffer, chatId: chatID });
+			const encoder = new VideoEncodeClass({ videoBuffer: buffer, chatId: userID() });
 			try {
 				const encodeVideo = await encoder.downloadVideo();
 				console.log("Encoded video:", encodeVideo);

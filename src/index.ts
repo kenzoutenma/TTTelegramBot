@@ -22,7 +22,7 @@ if (!botToken) {
 }
 
 const TG_Controller = new TelegramController(botToken);
-const TT_Service = new TikTokService(TG_Controller);
+const TT_Service = new TikTokService();
 
 async function main(): Promise<void> {
 	console.log(`✅ Bot ${botToken} started`);
@@ -47,7 +47,6 @@ async function main(): Promise<void> {
 
 		const video = await TT_Service.captureVideoRequests(
 			content.message.url,
-			content.chatId.toString(),
 		);
 		if (!video) return;
 

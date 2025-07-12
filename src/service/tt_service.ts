@@ -1,39 +1,7 @@
 import { Browser, BrowserContext, chromium, Page, Request, Response } from "playwright";
-import tgModel from "../controller/telegram_controller";
-import logger, { textColor, typeOfEmoji } from "../utils/logger";
-import drawProgressBar from "../utils/progressBar";
-import ve from "../utils/videoReEncoder";
-import TelegramController from "../controller/telegram_controller";
 
 class TikTokService {
-	private tg_log;
-
-	constructor(tg_controller: TelegramController) {
-		this.tg_log = tg_controller;
-	}
-
-	private messageHandler = {
-		sendMessage: async (chatId: string, text: string) => {
-			return this.tg_log ? await this.tg_log.sendMessage(chatId, text) : 0;
-		},
-		editMessage: async (chatId: string, messageId: number, text: string) => {
-			if (this.tg_log && messageId != null) {
-				return this.tg_log ? await this.tg_log.editMessage(chatId, messageId, text) : 0;
-			}
-		},
-		deleteMessage: async (chatId: string, messageId: number | null) => {
-			if (this.tg_log && messageId != null) {
-				await this.tg_log.deleteMessage(chatId, messageId);
-			}
-		},
-		sendError: async (chatId: string, text: string) => {
-			if (this.tg_log) {
-				return await this.tg_log.sendMessage(chatId, `${typeOfEmoji["error"]} ${text}`);
-			}
-		},
-	};
-
-	async captureVideoRequests(url: string, chatId: string): Promise<Buffer<ArrayBufferLike> | undefined> {
+	async captureVideoRequests(url: string): Promise<Buffer<ArrayBufferLike> | undefined> {
 		const browser: Browser = await chromium.launch({ headless: true });
 		const context: BrowserContext = await browser.newContext();
 		const page: Page = await context.newPage();
@@ -44,7 +12,7 @@ class TikTokService {
 		page.on("request", (request) => {
 			const reqUrl = request.url();
 			if (!resolved && reqUrl.includes("v16-webapp-prime")) {
-				console.log("[Request] Found video URL:", reqUrl);
+				console.log("[Request] Found video URL:", reqUrl.slice(0, 15));
 				videoUrl = reqUrl;
 				resolved = true;
 			}

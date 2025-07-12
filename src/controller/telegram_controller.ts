@@ -2,10 +2,7 @@ import FormData from "form-data";
 import { PassThrough } from "stream";
 import axios from "axios";
 import logger from "../utils/logger";
-import {
-	TelegramResponse,
-	TelegramResponseSingle,
-} from "../../@types/TelegramResponse";
+import { TelegramResponse, TelegramResponseSingle } from "../../@types/TelegramResponse";
 import "dotenv/config";
 import parseMessage from "#/utils/parseUserMessage";
 
@@ -61,7 +58,7 @@ class TelegramController {
 		return await response.json();
 	}
 
-	async sendMessage(chatId: string | number, text: string): Promise<any> {
+	async sendMessage(chatId: string | number, text: string): Promise<TelegramMessageAction> {
 		const url = `${this.baseUrl}sendMessage`;
 		const params = new URLSearchParams({
 			chat_id: chatId.toString(),
@@ -75,18 +72,15 @@ class TelegramController {
 		});
 
 		const data = (await response.json()) as TelegramResponseSingle;
-		const messageId = data.result?.message_id;
+		const messageId = data.result?.message_id.toString();
 		logger({
 			message: `Sending message ${messageId} to ${chatId}: ${text.split(" ").slice(0, 5).join(" ")}...`,
 			emoji: "change",
 		});
-		return messageId;
+		return { chatID: chatId.toString(), messageID: messageId };
 	}
 
-	async deleteMessage(
-		chatId: string | number,
-		messageId: number
-	): Promise<any> {
+	async deleteMessage(chatId: string | number, messageId: string): Promise<TelegramMessageAction> {
 		const url = `${this.baseUrl}deleteMessage`;
 		const payload = new URLSearchParams({
 			chat_id: chatId.toString(),
@@ -97,18 +91,17 @@ class TelegramController {
 			method: "POST",
 			body: payload,
 		});
+
+		console.log(await response.json())
+
 		logger({
 			message: `Deleted message ${messageId} in ${chatId}`,
 			emoji: "change",
 		});
-		return await response.json();
+		return { chatID: chatId.toString(), messageID: messageId };
 	}
 
-	async editMessage(
-		chatId: string | number,
-		messageId: number,
-		text: string
-	): Promise<any> {
+	async editMessage(chatId: string | number, messageId: string, text: string): Promise<any> {
 		const url = `${this.baseUrl}editMessageText`;
 		const payload = new URLSearchParams({
 			chat_id: chatId.toString(),
@@ -124,10 +117,9 @@ class TelegramController {
 		logger({
 			message: `Edited message ${messageId} in ${chatId} with new text: ${text}`,
 			emoji: "change",
-			replace: true,
 		});
 
-		return await messageId;
+		return { chatID: chatId.toString(), messageID: messageId };
 	}
 
 	async sendVideo(chatId: string | number, videoBuffer: Buffer): Promise<any> {
@@ -171,11 +163,7 @@ class TelegramController {
 		}
 	}
 
-	async sendDocument(
-		chatId: string | number,
-		fileBuffer: Buffer,
-		filename: string = "video.mp4"
-	): Promise<any> {
+	async sendDocument(chatId: string | number, fileBuffer: Buffer, filename: string = "video.mp4"): Promise<any> {
 		const url = `${this.baseUrl}sendDocument`;
 		const form = new FormData();
 

@@ -12,3 +12,8 @@ interface ParsedTelegramUpdate {
     offset: number;
 	message: parsedMessage;
 }
+
+interface TelegramMessageAction {
+	chatID: string;
+	messageID: string;
+}

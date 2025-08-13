@@ -92,7 +92,7 @@ class TelegramController {
 			body: payload,
 		});
 
-		console.log(await response.json())
+		console.log(await response.json());
 
 		logger({
 			message: `Deleted message ${messageId} in ${chatId}`,
@@ -122,42 +122,58 @@ class TelegramController {
 		return { chatID: chatId.toString(), messageID: messageId };
 	}
 
-	async sendVideo(chatId: string | number, videoBuffer: Buffer): Promise<any> {
+	async sendVideo(
+		chatId: string | number,
+		videoBuffer: Buffer,
+		options?: {
+			duration?: number;
+			width?: number;
+			height?: number;
+			thumbnailBuffer?: Buffer;
+			caption?: string;
+			supportsStreaming?: boolean;
+		}
+	): Promise<any> {
 		const url = `${this.baseUrl}sendVideo`;
 		const form = new FormData();
 
-		const stream = new PassThrough();
-		stream.end(videoBuffer);
+		const videoStream = new PassThrough();
+		videoStream.end(videoBuffer);
 
 		form.append("chat_id", chatId.toString());
-		form.append("video", stream, {
+		form.append("video", videoStream, {
 			filename: "video.mp4",
 			contentType: "video/mp4",
 			knownLength: videoBuffer.length,
 		});
+
+		if (options?.duration) form.append("duration", options.duration.toString());
+		if (options?.width) form.append("width", options.width.toString());
+		if (options?.height) form.append("height", options.height.toString());
+		if (options?.caption) form.append("caption", options.caption);
+		if (options?.supportsStreaming) form.append("supports_streaming", "true");
+
+		if (options?.thumbnailBuffer) {
+			const thumbStream = new PassThrough();
+			thumbStream.end(options.thumbnailBuffer);
+			form.append("thumbnail", thumbStream, {
+				filename: "thumb.jpg",
+				contentType: "image/jpeg",
+				knownLength: options.thumbnailBuffer.length,
+			});
+		}
 
 		try {
 			const response = await axios.post(url, form, {
 				headers: form.getHeaders(),
 				maxBodyLength: Infinity,
 			});
-
 			return response.data;
 		} catch (error: any) {
 			if (error.response) {
-				logger({
-					message: "Telegram responded with error",
-					error: JSON.stringify(error.response.data, null, 2),
-					emoji: "error",
-					pickColor: "red",
-				});
+				console.error("Telegram responded with error", JSON.stringify(error.response.data, null, 2));
 			} else {
-				logger({
-					message: "Axios error",
-					error: error.message,
-					emoji: "error",
-					pickColor: "red",
-				});
+				console.error("Axios error", error.message);
 			}
 			throw error;
 		}

@@ -13,7 +13,13 @@ const botToken = () => {
 	return value;
 };
 
+const tiktokVideo = () => {
+	const value: string | null = process.env.TIKTOK_TEST_URL || null;
+	if (!value) throw new Error("no token");
+	return value;
+};
+
 const TG_Controller = new TelegramController(botToken());
 const TT_Service = new TikTokService();
 
-export { userID, botToken, TG_Controller, TT_Service };
+export { userID, botToken, tiktokVideo, TG_Controller, TT_Service };

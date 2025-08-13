@@ -36,13 +36,16 @@ async function main(): Promise<void> {
 		}
 
 		const messageKey = `${content.message.url}_${content.offset}`;
-
+		const { chatId, message } = content;
+		
 		if (processedMessages.has(messageKey)) {
 			logger({
 				message: `Duplicate skipped: ${messageKey}`,
 			});
 			return;
 		}
+
+		const progress = await TG_Controller.sendMessage(chatId.toString(), 'finding video...')
 		processedMessages.add(messageKey);
 
 		const video = await TT_Service.captureVideoRequests(
@@ -50,19 +53,21 @@ async function main(): Promise<void> {
 		);
 		if (!video) return;
 
-		const { chatId, message } = content;
-		const { cropTop, cropBottom, startTime, duration } = message;
+		const { cropTop, cropBottom, startTime, duration, noAudioFlag } = message;
 
-		const encodeVideo = await new VideoEncodeClass({videoBuffer: video, chatId: chatId.toString(), cropTop, cropBottom, start: startTime, duration})
+		await TG_Controller.editMessage(chatId.toString(), progress.messageID, 'encoding your video...')
+
+		const encodeVideo = await new VideoEncodeClass({videoBuffer: video, chatId: chatId.toString(), cropTop, cropBottom, start: startTime, duration, noAudio: noAudioFlag})
 
 		if (content.message.asGif) {
 			const save = await encodeVideo.downloadGif()
-			TG_Controller.sendDocument(chatId.toString(), save.video, save.video_name);
+			await TG_Controller.sendDocument(chatId.toString(), save.video, save.video_name);
 		}
 		else {
 			const save = await encodeVideo.downloadVideo()
-			TG_Controller.sendVideo(chatId.toString(), save.video);
+			await TG_Controller.sendVideo(chatId.toString(), save.video);
 		}
+		TG_Controller.deleteMessage(chatId, progress.messageID)
 	});
 }
 

@@ -30,6 +30,7 @@ function parseMessage(text: string): ParsedMessageString | null {
     const cropTop = text.match(/-top\s+([0-9:.]+)/) || byTwoSide;
     const cropBot = text.match(/-bot\s+([0-9:.]+)/) || byTwoSide;
     const gifFlag = /-gif\b/.test(text);
+    const noAudioFlag = /-na\b/.test(text);
 
     return {
         url,
@@ -38,6 +39,7 @@ function parseMessage(text: string): ParsedMessageString | null {
         cropTop: cropTop ? cropTop[1] : undefined,
         cropBottom: cropBot ? cropBot[1] : undefined,
         asGif: gifFlag,
+        noAudioFlag: noAudioFlag
     };
 }
 

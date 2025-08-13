@@ -7,93 +7,158 @@ import { tmpdir } from "os";
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
-async function reencodeVideo(
-	buffer: Buffer,
-	startTime?: string,
-	duration?: string,
-	cropTop?: string,
-	cropBottom?: string,
-	asGif?: boolean
-): Promise<Buffer> {
+interface filtered {
+	input: string;
+	output: string;
+	stringified: string[];
+	start: string;
+	duration: string | undefined;
+	noAudio?: boolean | undefined;
+}
+
+/**
+ *
+ * @param extension
+ * @param cropTop
+ * @param cropBottom
+ * @param start
+ * @param duration
+ * @param noAudio
+ * @returns
+ */
+
+export function filters(
+	extension: "gif" | "mp4",
+	cropTop: string | undefined,
+	cropBottom: string | undefined,
+	start: string | undefined,
+	duration: string | undefined,
+	noAudio?: boolean | undefined
+): filtered {
 	const date = Date.now();
 	const inputPath = join(tmpdir(), `${date}_input.mp4`);
-	const extension = asGif ? "gif" : "mp4";
 	const outputPath = join(tmpdir(), `${date}_output.${extension}`);
-
-	await writeFile(inputPath, buffer);
 
 	const filters: string[] = [];
 
-	if (cropTop || cropBottom) {
-		const botValue = Number(cropBottom);
-		const topValue = Number(cropTop);
-		const cropHeightExpr = `in_h-${topValue + botValue}`;
-		filters.push(`crop=in_w:${cropHeightExpr}:0:${topValue}`);
-	}
+	const botValue = cropBottom ? Number(cropBottom) : 0;
+	const topValue = cropTop ? Number(cropTop) : 0;
 
-	filters.push("scale=trunc(iw/2)*2:trunc(ih/2)*2");
+	const outHeight = topValue + botValue;
+	const offsetY = topValue;
 
-	if (asGif) {
-		const gifPath = `${outputPath}.gif`;
-		try {
-			await new Promise((res, rej) => {
-				let gifStarter = ffmpeg(inputPath)
-					.inputFormat("mp4")
-					.output(gifPath)
-					.outputOptions([
-						"-filter_complex",
-						`[0:v] ${filters[0]}, fps=10,scale=-1:-1:flags=full_chroma_int,split [a][b];[a] palettegen=max_colors=255:reserve_transparent=1:stats_mode=diff [p];[b][p] paletteuse=dither=none:bayer_scale=5:diff_mode=rectangle:new=1:alpha_threshold=128`,
-						"-gifflags",
-						"-offsetting",
-					])
-					.format("gif")
-					.on("end", res)
-					.on("error", rej);
-				if (startTime) gifStarter = gifStarter.setStartTime(startTime);
-				if (duration) gifStarter = gifStarter.setDuration(duration);
-				gifStarter.run();
-			});
+	filters.push(`crop=in_w:in_h-${outHeight}:0:${offsetY}`);
 
-			const resultBuffer = await readFile(gifPath);
-			if (resultBuffer.byteLength < 10 * 1024 * 1024) {
-				return resultBuffer;
-			} else {
-				logger({ message: `${resultBuffer.byteLength} < ${10 * 1024 * 1024}` });
-			}
-		} catch (err) {
-			logger({
-				message: `FFmpeg failed`,
-				error: err instanceof Error ? err.message : String(err),
-			});
-		}
-
-		throw new Error("Unable to create GIF under 10MB with acceptable FPS.");
-	} else {
-		return new Promise((resolve, reject) => {
-			let videoStarter = ffmpeg(inputPath)
-				.output(outputPath)
-				.videoCodec("libx264")
-				.audioCodec("aac")
-				.outputOptions(["-movflags", "faststart", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-vf", filters.join(",")])
-				.on("error", (err) => {
-					logger({ message: "FFmpeg error", error: err.message });
-					reject(new Error("FFmpeg error: " + err.message));
-				})
-				.on("end", async () => {
-					try {
-						const resultBuffer = await readFile(outputPath);
-						resolve(resultBuffer);
-					} catch (e) {
-						reject(e);
-					}
-				});
-
-			if (startTime) videoStarter = videoStarter.setStartTime(startTime);
-			if (duration) videoStarter = videoStarter.setDuration(duration);
-
-			videoStarter.run();
-		});
-	}
+	return {
+		input: inputPath,
+		output: outputPath,
+		start: start || "0",
+		duration: duration,
+		stringified: filters,
+		noAudio: noAudio,
+	};
 }
 
-export default { reencodeVideo };
+/* 
+	main block of encode video
+*/
+async function encodeVideo(buffer: Buffer, filters: filtered): Promise<Buffer> {
+	await writeFile(filters.input, buffer);
+
+	return new Promise((resolve, reject) => {
+		const opts = ["-movflags", "faststart", 
+									"-preset", "veryfast", 
+									"-pix_fmt", "yuv420p", 
+									"-vf", filters.stringified.join("")];
+
+		if (filters.noAudio) {
+			opts.push("-an");
+		}
+
+		let videoStarter = ffmpeg(filters.input)
+			.output(filters.output)
+			.videoCodec("libx264")
+			.audioCodec("aac")
+			.outputOptions(opts)
+			.on("error", (err) => {
+				logger({ message: "FFmpeg error", error: err.message });
+				reject(new Error("FFmpeg error: " + err.message));
+			})
+			.on("end", async () => {
+				try {
+					const resultBuffer = await readFile(filters.output);
+					resolve(resultBuffer);
+				} catch (e) {
+					reject(e);
+				}
+			});
+
+		if (filters.start) videoStarter = videoStarter.setStartTime(filters.start);
+		if (filters.duration) videoStarter = videoStarter.setDuration(filters.duration);
+
+		videoStarter.run();
+	});
+}
+
+/* 
+	main block of encode gif
+*/
+export async function encodeGIF(buffer: Buffer, filters: filtered): Promise<Buffer> {
+	await writeFile(filters.input, buffer);
+	const fpsList = [60, 45, 25, 20, 15, 10];
+
+	for (const fps of fpsList) {
+		console.log(`\n\nTrying FPS: ${fps}`);
+
+		try {
+			await runFFmpegGif(filters, fps);
+			const resultBuffer = await readFile(filters.output);
+
+			if (resultBuffer.byteLength < 10 * 1024 * 1024) {
+				return resultBuffer;
+			}
+		} catch (err) {
+			console.error("FFmpeg failed for FPS", fps, err);
+		}
+	}
+
+	throw new Error("All FPS attempts failed or file too large");
+}
+
+/* 
+	separated ffmpeg block for encode gif
+*/
+function runFFmpegGif(filters: filtered, fps: number): Promise<Buffer> {
+	return new Promise((resolve, reject) => {
+		let command = ffmpeg(filters.input)
+			.inputFormat("mp4")
+			.output(filters.output)
+			.outputOptions([
+				"-vf",
+				`fps=${fps},scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse,${filters.stringified.join(
+					","
+				)}`,
+			])
+			.format("gif")
+			.on("error", (err) => reject(new Error("FFmpeg error: " + err.message)))
+			.on("end", async () => {
+				try {
+					const resultBuffer = await readFile(filters.output);
+					if (resultBuffer.byteLength < 10 * 1024 * 1024) {
+						resolve(resultBuffer);
+					} else {
+						reject();
+					}
+				} catch (e) {
+					reject(e);
+				}
+			});
+
+		if (filters.start) command = command.setStartTime(filters.start);
+		if (filters.duration) command = command.setDuration(filters.duration);
+
+		command.run();
+	});
+}
+
+export default { encodeGIF, encodeVideo, filters };

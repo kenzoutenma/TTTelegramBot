@@ -1,4 +1,4 @@
-import ve from "../utils/videoReEncoder";
+import VideoEncoder from "../utils/videoReEncoder";
 
 interface videoPromise {
 	type: "gif" | "video";
@@ -14,6 +14,7 @@ interface videoEncodeProps {
 	duration?: string;
 	cropTop?: string;
 	cropBottom?: string;
+	noAudio?: boolean;
 }
 
 class VideoEncodeClass {
@@ -23,18 +24,21 @@ class VideoEncodeClass {
 	private duration;
 	private cropTop;
 	private cropBottom;
+	private noAudio
 
-	constructor({ videoBuffer, chatId, start, duration, cropTop, cropBottom }: videoEncodeProps) {
+	constructor({ videoBuffer, chatId, start, duration, cropTop, cropBottom, noAudio }: videoEncodeProps) {
 		this.videoBuffer = videoBuffer;
 		this.chatId = chatId;
 		this.start = start;
 		this.duration = duration;
 		this.cropTop = cropTop;
 		this.cropBottom = cropBottom;
+		this.noAudio = noAudio
 	}
 
 	async downloadGif(): Promise<videoPromise> {
-		const end = await ve.reencodeVideo(this.videoBuffer, this.start, this.duration, this.cropTop, this.cropBottom, true);
+		const filter = VideoEncoder.filters("gif", this.cropTop, this.cropBottom, this.start, this.duration)
+		const end = await VideoEncoder.encodeGIF(this.videoBuffer, filter);
 		return {
 			chatId: this.chatId,
 			video: end,
@@ -42,8 +46,11 @@ class VideoEncodeClass {
 			type: "gif" as const,
 		};
 	}
+
 	async downloadVideo(): Promise<videoPromise> {
-		const end = await ve.reencodeVideo(this.videoBuffer, this.start, this.duration, this.cropTop, this.cropBottom, false);
+		const filter = VideoEncoder.filters("mp4", this.cropTop, this.cropBottom, this.start, this.duration, this.noAudio)
+		console.log(filter)
+		const end = await VideoEncoder.encodeVideo(this.videoBuffer, filter);
 		return {
 			chatId: this.chatId,
 			video: end,

@@ -5,6 +5,7 @@ interface ParsedMessageString {
     cropTop?: string;
     cropBottom?: string;
     asGif?: boolean;
+    noAudioFlag: boolean
 }
 
 interface ParsedTelegramUpdate {

@@ -1,11 +1,17 @@
-import ffmpeg from "fluent-ffmpeg";
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
-import logger, { textColor } from "./logger";
+import ffmpeg from "fluent-ffmpeg";
 import { readFile, writeFile } from "fs/promises";
-import { join } from "path";
 import { tmpdir } from "os";
+import { join } from "path";
+import logger from "./logger";
+
+const TELEGRAM_SAFE_LIMIT = 10 * 1024 * 1024 * 0.75;
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+
+interface videoData {
+	length: number;
+}
 
 interface filtered {
 	input: string;
@@ -33,7 +39,8 @@ export function filters(
 	cropBottom: string | undefined,
 	start: string | undefined,
 	duration: string | undefined,
-	noAudio?: boolean | undefined
+	noAudio?: boolean | undefined,
+	options?: videoData | null
 ): filtered {
 	const date = Date.now();
 	const inputPath = join(tmpdir(), `${date}_input.mp4`);
@@ -47,7 +54,25 @@ export function filters(
 	const outHeight = topValue + botValue;
 	const offsetY = topValue;
 
-	filters.push(`crop=in_w:in_h-${outHeight}:0:${offsetY}`);
+	filters.push("-vf", `crop=in_w:in_h-${outHeight}:0:${offsetY}`);
+
+	if (options && options.length && options.length > TELEGRAM_SAFE_LIMIT) {
+		const ratio = options.length / TELEGRAM_SAFE_LIMIT;
+
+		const crf = Math.min(28 + Math.floor((ratio - 1) * 2), 32);
+		const baseBitrateKbps = Math.max(500, Math.floor(1000 / ratio));
+
+		filters.push(
+			"-crf",
+			crf.toString(),
+			"-b:v",
+			`${baseBitrateKbps}k`,
+			"-maxrate",
+			`${Math.round(baseBitrateKbps * 1.3)}k`,
+			"-bufsize",
+			`${Math.round(baseBitrateKbps * 2)}k`
+		);
+	}
 
 	return {
 		input: inputPath,
@@ -65,16 +90,20 @@ export function filters(
 async function encodeVideo(buffer: Buffer, filters: filtered): Promise<Buffer> {
 	await writeFile(filters.input, buffer);
 
+	const opts = [
+		"-movflags",
+		"faststart",
+		"-preset",
+		"veryfast",
+		"-pix_fmt",
+		"yuv420p",
+		"-vf",
+		`${filters.stringified.join(",")},scale=720:-2:flags=lanczos`,
+	];
+
+	if (filters.noAudio) opts.push("-an");
+
 	return new Promise((resolve, reject) => {
-		const opts = ["-movflags", "faststart", 
-									"-preset", "veryfast", 
-									"-pix_fmt", "yuv420p", 
-									"-vf", filters.stringified.join("")];
-
-		if (filters.noAudio) {
-			opts.push("-an");
-		}
-
 		let videoStarter = ffmpeg(filters.input)
 			.output(filters.output)
 			.videoCodec("libx264")

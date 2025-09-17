@@ -1,10 +1,10 @@
+import parseMessage from "#/utils/parseUserMessage";
+import axios from "axios";
+import "dotenv/config";
 import FormData from "form-data";
 import { PassThrough } from "stream";
-import axios from "axios";
-import logger from "../utils/logger";
 import { TelegramResponse, TelegramResponseSingle } from "../../@types/TelegramResponse";
-import "dotenv/config";
-import parseMessage from "#/utils/parseUserMessage";
+import logger from "../utils/logger";
 
 class TelegramController {
 	private baseUrl: string;
@@ -52,7 +52,7 @@ class TelegramController {
 		const params = new URLSearchParams();
 
 		if (offset !== null) params.append("offset", offset.toString());
-		params.append("timeout", "100");
+		params.append("timeout", "10000");
 
 		const response = await fetch(`${url}?${params.toString()}`);
 		return await response.json();

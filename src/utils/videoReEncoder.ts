@@ -54,7 +54,7 @@ export function filters(
 	const outHeight = topValue + botValue;
 	const offsetY = topValue;
 
-	filters.push("-vf", `crop=in_w:in_h-${outHeight}:0:${offsetY}`);
+	filters.push(`crop=in_w:in_h-${outHeight}:0:${offsetY}`);
 
 	if (options && options.length && options.length > TELEGRAM_SAFE_LIMIT) {
 		const ratio = options.length / TELEGRAM_SAFE_LIMIT;
@@ -109,6 +109,12 @@ async function encodeVideo(buffer: Buffer, filters: filtered): Promise<Buffer> {
 			.videoCodec("libx264")
 			.audioCodec("aac")
 			.outputOptions(opts)
+			.on("start", (commandLine) => {
+				logger({ message: `FFmpeg started: ${commandLine}` });
+			})
+			.on("stderr", (stderrLine) => {
+				logger({ message: `"FFmpeg stderr" ${stderrLine}` });
+			})
 			.on("error", (err) => {
 				logger({ message: "FFmpeg error", error: err.message });
 				reject(new Error("FFmpeg error: " + err.message));

@@ -1,7 +1,7 @@
+import { tiktokVideo, TT_Service, userID } from "#/configs/test-config";
 import VideoEncodeClass from "#/service/video-encode";
 import { writeFile } from "fs/promises";
 import { join } from "path";
-import { tiktokVideo, TT_Service, userID } from "#/configs/test-config";
 
 let buffer: Buffer<ArrayBufferLike> | undefined;
 
@@ -10,6 +10,7 @@ describe("TT", () => {
 		"should return video in buffer",
 		async () => {
 			buffer = await TT_Service.captureVideoRequests(tiktokVideo());
+			console.log(typeof buffer, buffer?.length)
 			expect(typeof buffer).toBe("object");
 		},
 		60 * 1000

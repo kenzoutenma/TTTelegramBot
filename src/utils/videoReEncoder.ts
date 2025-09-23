@@ -13,15 +13,6 @@ interface videoData {
 	length: number;
 }
 
-interface filtered {
-	input: string;
-	output: string;
-	stringified: string[];
-	start: string;
-	duration: string | undefined;
-	noAudio?: boolean | undefined;
-}
-
 /**
  *
  * @param extension
@@ -34,7 +25,7 @@ interface filtered {
  */
 
 export function filters(
-	extension: "gif" | "mp4",
+	extension: "gif" | "mp4" | "jpg",
 	cropTop: string | undefined,
 	cropBottom: string | undefined,
 	start: string | undefined,

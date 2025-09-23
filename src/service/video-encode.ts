@@ -1,3 +1,4 @@
+import { takePreview } from "#/utils/ffmpeg/take-a-screen";
 import VideoEncoder from "../utils/videoReEncoder";
 
 interface videoPromise {
@@ -46,6 +47,11 @@ class VideoEncodeClass {
 			type: "gif" as const,
 		};
 	}
+
+	async getCropPreview(): Promise<Buffer> {
+        const filter = VideoEncoder.filters("jpg", this.cropTop, this.cropBottom, this.start, undefined);
+        return await takePreview(this.videoBuffer, filter);
+    }
 
 	async downloadVideo(): Promise<videoPromise> {
 		const filter = VideoEncoder.filters("mp4", this.cropTop, this.cropBottom, this.start, this.duration, this.noAudio)

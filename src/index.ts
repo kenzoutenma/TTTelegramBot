@@ -1,8 +1,8 @@
-import logger from "./utils/logger";
-import { helpMessage } from "./view/help";
 import TelegramController from "./controller/telegram_controller";
 import TikTokService from "./service/tt_service";
 import VideoEncodeClass from "./service/video-encode";
+import logger from "./utils/logger";
+import { helpMessage } from "./view/help";
 
 const args = process.argv.slice(2);
 let tokenFromFlag: string | undefined = undefined;
@@ -58,6 +58,18 @@ async function main(): Promise<void> {
 		await TG_Controller.editMessage(chatId.toString(), progress.messageID, 'encoding your video...')
 
 		const encodeVideo = await new VideoEncodeClass({videoBuffer: video, chatId: chatId.toString(), cropTop, cropBottom, start: startTime, duration, noAudio: noAudioFlag})
+		let cropImageMessage, cropLikeMessage;
+		if (cropTop || cropBottom) {
+				const previewBuffer = await encodeVideo.getCropPreview();
+				cropLikeMessage = await TG_Controller.sendMessage(chatId.toString(), "Do you like this crop? Reply 'yes' or 'like' to confirm, or send new crop values.");
+				cropImageMessage = await TG_Controller.sendPhoto(chatId.toString(), previewBuffer, "crop.jpg");
+				const confirmation = await TG_Controller.waitForReply(chatId.toString());
+				console.log(confirmation)
+				if (confirmation.toLowerCase() == "no" || confirmation.toLowerCase() == "dislike") {
+						await TG_Controller.sendMessage(chatId.toString(), "Crop cancelled. Send new crop values.");
+						return;
+				}
+		}
 
 		if (content.message.asGif) {
 			const save = await encodeVideo.downloadGif()
@@ -68,6 +80,8 @@ async function main(): Promise<void> {
 			await TG_Controller.sendVideo(chatId.toString(), save.video);
 		}
 		TG_Controller.deleteMessage(chatId, progress.messageID)
+		TG_Controller.deleteMessage(chatId, cropLikeMessage?.messageID || "")
+		TG_Controller.deleteMessage(chatId, cropImageMessage?.messageID || "")
 	});
 }
 

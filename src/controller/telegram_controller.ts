@@ -219,6 +219,80 @@ class TelegramController {
 			throw error;
 		}
 	}
+
+	async sendPhoto(chatId: string | number, photoBuffer: Buffer, filename: string = "photo.jpg"): Promise<any> {
+		const url = `${this.baseUrl}sendPhoto`;
+		const form = new FormData();
+
+		const stream = new PassThrough();
+		stream.end(photoBuffer);
+
+		form.append("chat_id", chatId.toString());
+		form.append("photo", stream, {
+			filename,
+			contentType: "image/jpeg",
+			knownLength: photoBuffer.length,
+		});
+
+		const keyboard = {
+			inline_keyboard: [
+				[
+					{ text: "👍", callback_data: "like" },
+					{ text: "👎", callback_data: "dislike" },
+				],
+			],
+		};
+
+		form.append("reply_markup", JSON.stringify(keyboard));
+
+		try {
+			const response = await axios.post(url, form, {
+				headers: form.getHeaders(),
+				maxBodyLength: Infinity,
+			});
+
+			return response.data;
+		} catch (error: any) {
+			if (error.response) {
+				logger({
+					message: "Telegram responded with error",
+					error: error.response.data,
+					emoji: "error",
+					pickColor: "red",
+				});
+			} else {
+				logger({
+					message: "Axios error",
+					error: error.message,
+					emoji: "error",
+					pickColor: "red",
+				});
+			}
+			throw error;
+		}
+	}
+
+	async waitForReply(chatId: string, timeout: number = 30000): Promise<string> {
+		const startTime = Date.now();
+
+		while (Date.now() - startTime < timeout) {
+			const updates = await this.getUpdates(this.offset);
+			const results = updates.result ?? [];
+			for (const update of results) {
+				this.offset = update.update_id + 1;
+				if (update.message && update.message.chat.id.toString() === chatId) {
+					return update.message.text || "";
+				}
+
+				if (update.callback_query && update.callback_query.message?.chat?.id.toString() === chatId) {
+					return update.callback_query.data || "";
+				}
+			}
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+		}
+
+		throw new Error("Reply timeout exceeded");
+	}
 }
 
 export default TelegramController;

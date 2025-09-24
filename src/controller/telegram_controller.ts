@@ -250,8 +250,8 @@ class TelegramController {
 				headers: form.getHeaders(),
 				maxBodyLength: Infinity,
 			});
-
-			return response.data;
+			const messageId = response.data.result?.message_id.toString();
+			return { chatID: chatId.toString(), messageID: messageId };
 		} catch (error: any) {
 			if (error.response) {
 				logger({
@@ -272,7 +272,7 @@ class TelegramController {
 		}
 	}
 
-	async waitForReply(chatId: string, timeout: number = 30000): Promise<string> {
+	async waitForReply(chatId: string, timeout: number = 30000): Promise<string | ParsedTelegramUpdate> {
 		const startTime = Date.now();
 
 		while (Date.now() - startTime < timeout) {
@@ -281,7 +281,12 @@ class TelegramController {
 			for (const update of results) {
 				this.offset = update.update_id + 1;
 				if (update.message && update.message.chat.id.toString() === chatId) {
-					return update.message.text || "";
+					const parsedMessage = parseMessage(update.message.text) as ParsedMessageString;
+					return {
+							chatId: update.message.chat.id,
+							offset: this.offset,
+							message: parsedMessage,
+					};
 				}
 
 				if (update.callback_query && update.callback_query.message?.chat?.id.toString() === chatId) {

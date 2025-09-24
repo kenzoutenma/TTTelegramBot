@@ -1,5 +1,5 @@
 import { takePreview } from "#/utils/ffmpeg/take-a-screen";
-import VideoEncoder from "../utils/videoReEncoder";
+import VideoEncoder from "#/utils/ffmpeg/videoReEncoder";
 
 interface videoPromise {
 	type: "gif" | "video";
@@ -11,35 +11,26 @@ interface videoPromise {
 interface videoEncodeProps {
 	videoBuffer: Buffer<ArrayBufferLike>;
 	chatId: string;
-	start?: string;
-	duration?: string;
-	cropTop?: string;
-	cropBottom?: string;
-	noAudio?: boolean;
+	filterString?: filtered;
 }
 
 class VideoEncodeClass {
 	private videoBuffer;
 	private chatId;
-	private start;
-	private duration;
-	private cropTop;
-	private cropBottom;
-	private noAudio
+	private filterString;
 
-	constructor({ videoBuffer, chatId, start, duration, cropTop, cropBottom, noAudio }: videoEncodeProps) {
+	constructor({ videoBuffer, chatId, filterString }: videoEncodeProps) {
 		this.videoBuffer = videoBuffer;
 		this.chatId = chatId;
-		this.start = start;
-		this.duration = duration;
-		this.cropTop = cropTop;
-		this.cropBottom = cropBottom;
-		this.noAudio = noAudio
+		this.filterString = filterString;
 	}
 
-	async downloadGif(): Promise<videoPromise> {
-		const filter = VideoEncoder.filters("gif", this.cropTop, this.cropBottom, this.start, this.duration)
-		const end = await VideoEncoder.encodeGIF(this.videoBuffer, filter);
+	async downloadGif(_filters?: filtered): Promise<videoPromise> {
+		const baseFilters = _filters ? _filters : this.filterString ? this.filterString : null;
+		if (!baseFilters) throw new Error("No filters provided for GIF encoding");
+		const filters = { ...baseFilters };
+
+		const end = await VideoEncoder.encodeGIF(this.videoBuffer, filters);
 		return {
 			chatId: this.chatId,
 			video: end,
@@ -48,15 +39,20 @@ class VideoEncodeClass {
 		};
 	}
 
-	async getCropPreview(): Promise<Buffer> {
-        const filter = VideoEncoder.filters("jpg", this.cropTop, this.cropBottom, this.start, undefined);
-        return await takePreview(this.videoBuffer, filter);
-    }
+	async getCropPreview(_filters?: filtered): Promise<Buffer> {
+		const baseFilters = _filters ? _filters : this.filterString ? this.filterString : null;
+		if (!baseFilters) throw new Error("No filters provided for crop preview");
+		const filters = { ...baseFilters, extension: "jpg" };
 
-	async downloadVideo(): Promise<videoPromise> {
-		const filter = VideoEncoder.filters("mp4", this.cropTop, this.cropBottom, this.start, this.duration, this.noAudio)
-		console.log(filter)
-		const end = await VideoEncoder.encodeVideo(this.videoBuffer, filter);
+		return await takePreview(this.videoBuffer, filters);
+	}
+
+	async downloadVideo(_filters?: filtered): Promise<videoPromise> {
+		const baseFilters = _filters ? _filters : this.filterString ? this.filterString : null;
+		if (!baseFilters) throw new Error("No filters provided for video encoding");
+		const filters = { ...baseFilters };
+
+		const end = await VideoEncoder.encodeVideo(this.videoBuffer, filters);
 		return {
 			chatId: this.chatId,
 			video: end,

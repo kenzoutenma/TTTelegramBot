@@ -1,79 +1,10 @@
 import ffmpegInstaller from "@ffmpeg-installer/ffmpeg";
 import ffmpeg from "fluent-ffmpeg";
 import { readFile, writeFile } from "fs/promises";
-import { tmpdir } from "os";
-import { join } from "path";
-import logger from "./logger";
 
-const TELEGRAM_SAFE_LIMIT = 10 * 1024 * 1024 * 0.75;
+import logger from "../logger";
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-
-interface videoData {
-	length: number;
-}
-
-/**
- *
- * @param extension
- * @param cropTop
- * @param cropBottom
- * @param start
- * @param duration
- * @param noAudio
- * @returns
- */
-
-export function filters(
-	extension: "gif" | "mp4" | "jpg",
-	cropTop: string | undefined,
-	cropBottom: string | undefined,
-	start: string | undefined,
-	duration: string | undefined,
-	noAudio?: boolean | undefined,
-	options?: videoData | null
-): filtered {
-	const date = Date.now();
-	const inputPath = join(tmpdir(), `${date}_input.mp4`);
-	const outputPath = join(tmpdir(), `${date}_output.${extension}`);
-
-	const filters: string[] = [];
-
-	const botValue = cropBottom ? Number(cropBottom) : 0;
-	const topValue = cropTop ? Number(cropTop) : 0;
-
-	const outHeight = topValue + botValue;
-	const offsetY = topValue;
-
-	filters.push(`crop=in_w:in_h-${outHeight}:0:${offsetY}`);
-
-	if (options && options.length && options.length > TELEGRAM_SAFE_LIMIT) {
-		const ratio = options.length / TELEGRAM_SAFE_LIMIT;
-
-		const crf = Math.min(28 + Math.floor((ratio - 1) * 2), 32);
-		const baseBitrateKbps = Math.max(500, Math.floor(1000 / ratio));
-
-		filters.push(
-			"-crf",
-			crf.toString(),
-			"-b:v",
-			`${baseBitrateKbps}k`,
-			"-maxrate",
-			`${Math.round(baseBitrateKbps * 1.3)}k`,
-			"-bufsize",
-			`${Math.round(baseBitrateKbps * 2)}k`
-		);
-	}
-
-	return {
-		input: inputPath,
-		output: outputPath,
-		start: start || "0",
-		duration: duration,
-		stringified: filters,
-		noAudio: noAudio,
-	};
-}
 
 /* 
 	main block of encode video
@@ -187,4 +118,4 @@ function runFFmpegGif(filters: filtered, fps: number): Promise<Buffer> {
 	});
 }
 
-export default { encodeGIF, encodeVideo, filters };
+export default { encodeGIF, encodeVideo };

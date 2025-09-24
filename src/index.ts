@@ -1,6 +1,7 @@
 import TelegramController from "./controller/telegram_controller";
 import TikTokService from "./service/tt_service";
 import VideoEncodeClass from "./service/video-encode";
+import { ffmpeg_filters } from "./utils/ffmpeg/generate-filters";
 import logger from "./utils/logger";
 import { helpMessage } from "./view/help";
 
@@ -24,6 +25,8 @@ if (!botToken) {
 const TG_Controller = new TelegramController(botToken);
 const TT_Service = new TikTokService();
 
+const deleteThese = <{ chatId: string; messageID: string }[]>[];
+
 async function main(): Promise<void> {
 	console.log(`✅ Bot ${botToken} started`);
 
@@ -46,6 +49,7 @@ async function main(): Promise<void> {
 		}
 
 		const progress = await TG_Controller.sendMessage(chatId.toString(), 'finding video...')
+		deleteThese.push({ chatId: chatId.toString(), messageID: progress.messageID });
 		processedMessages.add(messageKey);
 
 		const video = await TT_Service.captureVideoRequests(
@@ -57,31 +61,50 @@ async function main(): Promise<void> {
 
 		await TG_Controller.editMessage(chatId.toString(), progress.messageID, 'encoding your video...')
 
-		const encodeVideo = await new VideoEncodeClass({videoBuffer: video, chatId: chatId.toString(), cropTop, cropBottom, start: startTime, duration, noAudio: noAudioFlag})
+		let filters = ffmpeg_filters({ extension: content.message.asGif ? "gif" : "mp4", cropTop: cropTop, cropBottom: cropBottom, start: startTime, duration: duration, noAudio: noAudioFlag });
+		let encodeVideo = await new VideoEncodeClass({videoBuffer: video, chatId: chatId.toString()});
 		let cropImageMessage, cropLikeMessage;
+
+		async function handleCrop() {
+			console.log(filters)
+			const previewBuffer = await encodeVideo.getCropPreview(filters);
+			cropLikeMessage = await TG_Controller.sendMessage(chatId.toString(), "Do you like this crop? Reply 'yes' or 'like' to confirm, or send new crop values.");
+			deleteThese.push({ chatId: chatId.toString(), messageID: cropLikeMessage.messageID });
+			cropImageMessage = await TG_Controller.sendPhoto(chatId.toString(), previewBuffer, "crop.jpg");
+			deleteThese.push({ chatId: chatId.toString(), messageID: cropImageMessage.messageID });
+			const confirmation = await TG_Controller.waitForReply(chatId.toString());
+	
+			if (typeof confirmation === "string" && (confirmation.toLowerCase() == "no" || confirmation.toLowerCase() == "dislike")) {
+					await TG_Controller.sendMessage(chatId.toString(), "Crop cancelled. Send new crop values.");
+					return;
+			}
+			else if (typeof confirmation === "object") {
+				const { chatId, message } = confirmation;
+				const { cropTop, cropBottom, startTime, duration, noAudioFlag } = message;
+				filters = ffmpeg_filters({ extension: content.message.asGif ? "gif" : "mp4", cropTop: cropTop, cropBottom: cropBottom, start: startTime, duration: duration, noAudio: noAudioFlag });
+				return await handleCrop();
+			}
+		}
+
 		if (cropTop || cropBottom) {
-				const previewBuffer = await encodeVideo.getCropPreview();
-				cropLikeMessage = await TG_Controller.sendMessage(chatId.toString(), "Do you like this crop? Reply 'yes' or 'like' to confirm, or send new crop values.");
-				cropImageMessage = await TG_Controller.sendPhoto(chatId.toString(), previewBuffer, "crop.jpg");
-				const confirmation = await TG_Controller.waitForReply(chatId.toString());
-				console.log(confirmation)
-				if (confirmation.toLowerCase() == "no" || confirmation.toLowerCase() == "dislike") {
-						await TG_Controller.sendMessage(chatId.toString(), "Crop cancelled. Send new crop values.");
-						return;
-				}
+			await handleCrop();
 		}
 
 		if (content.message.asGif) {
-			const save = await encodeVideo.downloadGif()
+			const save = await encodeVideo.downloadGif(filters)
 			await TG_Controller.sendDocument(chatId.toString(), save.video, save.video_name);
 		}
 		else {
-			const save = await encodeVideo.downloadVideo()
+			const save = await encodeVideo.downloadVideo(filters)
 			await TG_Controller.sendVideo(chatId.toString(), save.video);
 		}
-		TG_Controller.deleteMessage(chatId, progress.messageID)
-		TG_Controller.deleteMessage(chatId, cropLikeMessage?.messageID || "")
-		TG_Controller.deleteMessage(chatId, cropImageMessage?.messageID || "")
+		
+		deleteThese.map(async (msg) => {
+			if (msg.chatId === chatId.toString()) {
+				await TG_Controller.deleteMessage(msg.chatId, msg.messageID);
+			}
+		});
+		deleteThese.length = 0;
 	});
 }
 

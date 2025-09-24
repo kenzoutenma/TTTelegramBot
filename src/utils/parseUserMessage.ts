@@ -1,8 +1,7 @@
 function parseMessage(text: string): ParsedMessageString | null {
     const urlMatch = text.match(/https?:\/\/\S+/);
-    if (!urlMatch) return null;
 
-    const url = urlMatch[0];
+    const url = urlMatch ? urlMatch[0] : null;
     const startMatch = text.match(/-start\s+([0-9:.]+)/);
     const durationMatch = text.match(/-duration\s+([0-9:.]+)/);
 

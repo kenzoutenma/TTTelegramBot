@@ -1,5 +1,5 @@
 interface ParsedMessageString {
-    url: string;
+    url: string | null;
     startTime?: string;
     duration?: string;
     cropTop?: string;

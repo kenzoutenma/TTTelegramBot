@@ -2,10 +2,12 @@ import logger from "#/utils/logger";
 import { Browser, BrowserContext, chromium, Page } from "playwright";
 
 class TikTokService {
-	async captureVideoRequests(url: string): Promise<Buffer<ArrayBufferLike> | undefined> {
+	async captureVideoRequests(url: string): Promise<Buffer<ArrayBufferLike> | string> {
 		const browser: Browser = await chromium.launch({ headless: true });
 		const context: BrowserContext = await browser.newContext();
+
 		const page: Page = await context.newPage();
+		let causedByLogin = false;
 
 		let resolved = false;
 		let videoUrl = "";
@@ -17,22 +19,23 @@ class TikTokService {
 				videoUrl = reqUrl;
 				resolved = true;
 			}
+			if (reqUrl.includes("login")) {
+				causedByLogin = true;
+			}
 		});
 
-		logger({message: "Goin by url"})
 		await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30 * 1000 });
 		await page.waitForTimeout(2 * 1000);
 
 		if (!videoUrl) {
-			console.error("❌ No matching video URL found.");
 			await browser.close();
-			return;
+			return "❌ Caused some error" + (causedByLogin ? `Auth problem` : '');
 		}
 
 		const cookies = await context.cookies(videoUrl);
 		const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 
-		logger({message: "🟢 Fetching video manually..."});
+		logger({ message: "🟢 Fetching video manually..." });
 		const response = await fetch(videoUrl, {
 			headers: {
 				Cookie: cookieHeader,
@@ -46,22 +49,19 @@ class TikTokService {
 		});
 
 		if (!response.ok || !response.body) {
-			console.error("❌ Manual fetch failed with status:", response.status);
 			await browser.close();
-			return;
+			return "❌ Manual fetch failed with status:" + response.status;
 		}
 
 		const chunks: Uint8Array[] = [];
 		const reader = response.body.getReader();
 
-		logger({message: "Reading video"});
 		while (true) {
 			const { done, value } = await reader.read();
 			if (done) break;
 			if (value) chunks.push(value);
 		}
-		
-		logger({message: "download Ending"});
+
 		await browser.close();
 		const buffer = Buffer.concat(chunks);
 		console.log("✅ Video downloaded. Size:", buffer.length, "bytes");

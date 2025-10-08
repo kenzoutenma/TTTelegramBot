@@ -55,7 +55,10 @@ async function main(): Promise<void> {
 		const video = await TT_Service.captureVideoRequests(
 			content.message.url,
 		);
-		if (!video) return;
+		if (typeof video == "string") {
+			await TG_Controller.editMessage(chatId.toString(), progress.messageID, video)
+			return
+		}
 
 		const { cropTop, cropBottom, startTime, duration, noAudioFlag } = message;
 

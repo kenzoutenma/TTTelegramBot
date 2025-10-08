@@ -6,6 +6,25 @@ class TikTokService {
 		const browser: Browser = await chromium.launch({ headless: true });
 		const context: BrowserContext = await browser.newContext();
 
+		const cookieString = process.env.TIKTOK_LOGIN;
+		const cookiesInit =
+			cookieString &&
+			cookieString.split("; ").map((pair) => {
+				const [name, value] = pair.split("=");
+				return {
+					name,
+					value,
+					domain: ".tiktok.com",
+					path: "/",
+				};
+			});
+
+		if (cookiesInit) {
+			await context.addCookies(cookiesInit);
+		} else {
+			logger({ message: "no cookies" });
+		}
+
 		const page: Page = await context.newPage();
 		let causedByLogin = false;
 

@@ -21,6 +21,7 @@ export function ffmpeg_filters({ extension, cropTop, cropBottom, start, duration
 	const outputPath = join(tmpdir(), `${date}_output.${extension}`);
 
 	const filters: string[] = [];
+	const quality: string[] = [];
 
 	const botValue = cropBottom ? Number(cropBottom) : 0;
 	const topValue = cropTop ? Number(cropTop) : 0;
@@ -29,14 +30,14 @@ export function ffmpeg_filters({ extension, cropTop, cropBottom, start, duration
 	const offsetY = topValue;
 
 	filters.push(`crop=in_w:in_h-${outHeight}:0:${offsetY}`);
+	filters.push(`scale=720:-2:flags=lanczos`);
 
+	console.log(options)
 	if (options && options.length && options.length > TELEGRAM_SAFE_LIMIT) {
 		const ratio = options.length / TELEGRAM_SAFE_LIMIT;
-
-		const crf = Math.min(28 + Math.floor((ratio - 1) * 2), 32);
-		const baseBitrateKbps = Math.max(500, Math.floor(1000 / ratio));
-
-		filters.push(
+		const crf = Math.min(27 + Math.floor((ratio - 1) * 1.2), 30);
+		const baseBitrateKbps = Math.max(800, Math.floor(1200 / ratio));
+		quality.push(
 			"-crf",
 			crf.toString(),
 			"-b:v",
@@ -54,6 +55,7 @@ export function ffmpeg_filters({ extension, cropTop, cropBottom, start, duration
 		start: start || "0",
 		duration: duration,
 		stringified: filters,
+		stringifiedQuality: quality,
 		noAudio: noAudio,
 	};
 }

@@ -18,6 +18,7 @@ interface filtered {
 	input: string;
 	output: string;
 	stringified: string[];
+	stringifiedQuality: string[];
 	start: string;
 	duration: string | undefined;
 	noAudio?: boolean | undefined;

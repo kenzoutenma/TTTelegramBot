@@ -40,7 +40,7 @@ async function main(): Promise<void> {
 
 		const messageKey = `${content.message.url}_${content.offset}`;
 		const { chatId, message } = content;
-		
+
 		if (processedMessages.has(messageKey)) {
 			logger({
 				message: `Duplicate skipped: ${messageKey}`,
@@ -48,43 +48,58 @@ async function main(): Promise<void> {
 			return;
 		}
 
-		const progress = await TG_Controller.sendMessage(chatId.toString(), 'finding video...')
+		const progress = await TG_Controller.sendMessage(chatId.toString(), "finding video...");
 		deleteThese.push({ chatId: chatId.toString(), messageID: progress.messageID });
 		processedMessages.add(messageKey);
 
-		const video = await TT_Service.captureVideoRequests(
-			content.message.url,
-		);
+		const video = await TT_Service.captureVideoRequests(content.message.url);
 		if (typeof video == "string") {
-			await TG_Controller.editMessage(chatId.toString(), progress.messageID, video)
-			return
+			await TG_Controller.editMessage(chatId.toString(), progress.messageID, video);
+			return;
 		}
 
 		const { cropTop, cropBottom, startTime, duration, noAudioFlag } = message;
 
-		await TG_Controller.editMessage(chatId.toString(), progress.messageID, 'encoding your video...')
+		await TG_Controller.editMessage(chatId.toString(), progress.messageID, "encoding your video...");
 
-		let filters = ffmpeg_filters({ extension: content.message.asGif ? "gif" : "mp4", cropTop: cropTop, cropBottom: cropBottom, start: startTime, duration: duration, noAudio: noAudioFlag });
-		let encodeVideo = await new VideoEncodeClass({videoBuffer: video, chatId: chatId.toString()});
+		let filters = ffmpeg_filters({
+			extension: content.message.asGif ? "gif" : "mp4",
+			cropTop: cropTop,
+			cropBottom: cropBottom,
+			start: startTime,
+			duration: duration,
+			noAudio: noAudioFlag,
+			options: { length: video.length },
+		});
+		let encodeVideo = await new VideoEncodeClass({ videoBuffer: video, chatId: chatId.toString() });
 		let cropImageMessage, cropLikeMessage;
 
 		async function handleCrop() {
-			console.log(filters)
+			console.log(filters);
 			const previewBuffer = await encodeVideo.getCropPreview(filters);
-			cropLikeMessage = await TG_Controller.sendMessage(chatId.toString(), "Do you like this crop? Reply 'yes' or 'like' to confirm, or send new crop values.");
+			cropLikeMessage = await TG_Controller.sendMessage(
+				chatId.toString(),
+				"Do you like this crop? Reply 'yes' or 'like' to confirm, or send new crop values."
+			);
 			deleteThese.push({ chatId: chatId.toString(), messageID: cropLikeMessage.messageID });
 			cropImageMessage = await TG_Controller.sendPhoto(chatId.toString(), previewBuffer, "crop.jpg");
 			deleteThese.push({ chatId: chatId.toString(), messageID: cropImageMessage.messageID });
 			const confirmation = await TG_Controller.waitForReply(chatId.toString());
-	
+
 			if (typeof confirmation === "string" && (confirmation.toLowerCase() == "no" || confirmation.toLowerCase() == "dislike")) {
-					await TG_Controller.sendMessage(chatId.toString(), "Crop cancelled. Send new crop values.");
-					return;
-			}
-			else if (typeof confirmation === "object") {
+				await TG_Controller.sendMessage(chatId.toString(), "Crop cancelled. Send new crop values.");
+				return;
+			} else if (typeof confirmation === "object") {
 				const { chatId, message } = confirmation;
 				const { cropTop, cropBottom, startTime, duration, noAudioFlag } = message;
-				filters = ffmpeg_filters({ extension: content.message.asGif ? "gif" : "mp4", cropTop: cropTop, cropBottom: cropBottom, start: startTime, duration: duration, noAudio: noAudioFlag });
+				filters = ffmpeg_filters({
+					extension: content.message.asGif ? "gif" : "mp4",
+					cropTop: cropTop,
+					cropBottom: cropBottom,
+					start: startTime,
+					duration: duration,
+					noAudio: noAudioFlag,
+				});
 				return await handleCrop();
 			}
 		}
@@ -94,14 +109,13 @@ async function main(): Promise<void> {
 		}
 
 		if (content.message.asGif) {
-			const save = await encodeVideo.downloadGif(filters)
+			const save = await encodeVideo.downloadGif(filters);
 			await TG_Controller.sendDocument(chatId.toString(), save.video, save.video_name);
-		}
-		else {
-			const save = await encodeVideo.downloadVideo(filters)
+		} else {
+			const save = await encodeVideo.downloadVideo(filters);
 			await TG_Controller.sendVideo(chatId.toString(), save.video);
 		}
-		
+
 		deleteThese.map(async (msg) => {
 			if (msg.chatId === chatId.toString()) {
 				await TG_Controller.deleteMessage(msg.chatId, msg.messageID);

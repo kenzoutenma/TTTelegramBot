@@ -11,6 +11,8 @@ ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 */
 async function encodeVideo(buffer: Buffer, filters: filtered): Promise<Buffer> {
 	await writeFile(filters.input, buffer);
+	console.log("\n\nparams filters:", filters.stringified)
+	console.log("\n\nquality filters:", filters.stringifiedQuality)
 
 	const opts = [
 		"-movflags",
@@ -20,7 +22,8 @@ async function encodeVideo(buffer: Buffer, filters: filtered): Promise<Buffer> {
 		"-pix_fmt",
 		"yuv420p",
 		"-vf",
-		`${filters.stringified.join(",")},scale=720:-2:flags=lanczos`,
+		`${filters.stringified.join(",")}`,
+		...filters.stringifiedQuality,
 	];
 
 	if (filters.noAudio) opts.push("-an");
@@ -28,8 +31,8 @@ async function encodeVideo(buffer: Buffer, filters: filtered): Promise<Buffer> {
 	return new Promise((resolve, reject) => {
 		let videoStarter = ffmpeg(filters.input)
 			.output(filters.output)
-			.videoCodec("libx264")
-			.audioCodec("aac")
+			.videoCodec("libx265")
+			.audioCodec("mp2")
 			.outputOptions(opts)
 			.on("start", (commandLine) => {
 				logger({ message: `FFmpeg started: ${commandLine}` });

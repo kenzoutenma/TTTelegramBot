@@ -95,9 +95,7 @@ function runFFmpegGif(filters: filtered, fps: number): Promise<Buffer> {
 			.output(filters.output)
 			.outputOptions([
 				"-vf",
-				`fps=${fps},scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse,${filters.stringified.join(
-					","
-				)}`,
+				`fps=${fps},${filters.stringified.join(",")},scale=320:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3`,
 			])
 			.format("gif")
 			.on("error", (err) => reject(new Error("FFmpeg error: " + err.message)))

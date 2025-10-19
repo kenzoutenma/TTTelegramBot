@@ -116,12 +116,12 @@ async function main(): Promise<void> {
 			await TG_Controller.sendVideo(chatId.toString(), save.video);
 		}
 
-		deleteThese.map(async (msg) => {
+		deleteThese.map(async (msg, i) => {
 			if (msg.chatId === chatId.toString()) {
 				await TG_Controller.deleteMessage(msg.chatId, msg.messageID);
+				deleteThese.splice(i, 1);
 			}
 		});
-		deleteThese.length = 0;
 	});
 }
 

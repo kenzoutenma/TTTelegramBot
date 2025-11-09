@@ -1,3 +1,4 @@
+import { tg_commands } from "#/configs/commands";
 import parseMessage from "#/utils/parseUserMessage";
 import axios from "axios";
 import "dotenv/config";
@@ -29,7 +30,17 @@ class TelegramController {
 						const chatId = content.message?.chat?.id;
 						if (!chatId) continue;
 
-						const messageText = content.message?.text;
+						const messageText = content.message?.text?.trim();
+						if (!messageText) continue;
+
+						const commandKey = (Object.keys(tg_commands) as Array<keyof typeof tg_commands>)
+							.find(cmd => messageText.startsWith(cmd));
+
+						if (commandKey) {
+							const message = await tg_commands[commandKey]();
+							callback({ chatId, offset: this.offset, message });
+						}
+
 						const parsedMessage = parseMessage(messageText) as ParsedMessageString;
 
 						await callback({

@@ -3,7 +3,6 @@ import TikTokService from "./service/tt_service";
 import VideoEncodeClass from "./service/video-encode";
 import { ffmpeg_filters } from "./utils/ffmpeg/generate-filters";
 import logger from "./utils/logger";
-import { helpMessage } from "./view/help";
 
 const args = process.argv.slice(2);
 let tokenFromFlag: string | undefined = undefined;
@@ -33,10 +32,11 @@ async function main(): Promise<void> {
 	const processedMessages = new Set<string>();
 
 	await TG_Controller.start(async (content: ParsedTelegramUpdate) => {
-		if (!content?.message?.url) {
-			TG_Controller.sendMessage(content.chatId, helpMessage);
+		if (typeof content.message === "string") {
+			await TG_Controller.sendMessage(content.chatId.toString(), content.message);
 			return;
 		}
+		if (!content.message.url) return;
 
 		const messageKey = `${content.message.url}_${content.offset}`;
 		const { chatId, message } = content;

@@ -1,5 +1,3 @@
-import { tg_commands } from "#/configs/commands";
-import parseMessage from "#/utils/parseUserMessage";
 import axios from "axios";
 import "dotenv/config";
 import FormData from "form-data";
@@ -19,37 +17,29 @@ class TelegramController {
 	}
 
 	async start(callback: (content: ParsedTelegramUpdate) => Promise<void>) {
-		console.log("✅ Bot is running...");
-
 		while (true) {
 			try {
 				const update: TelegramResponse = await this.getUpdates(this.offset);
-				if (update.result && Array.isArray(update.result)) {
-					for (const content of update.result) {
-						this.offset = content.update_id + 1;
-						const chatId = content.message?.chat?.id;
-						if (!chatId) continue;
+				if (!update.result && !Array.isArray(update.result)) {
+					logger({
+						message: "Any messages not received"
+					})
+					return;
+				}
 
-						const messageText = content.message?.text?.trim();
-						if (!messageText) continue;
-						console.log(messageText);
-						const commandKey = (Object.keys(tg_commands) as Array<keyof typeof tg_commands>).find((cmd) =>
-							messageText.startsWith(cmd)
-						);
+				for (const content of update.result) {
+					this.offset = content.update_id + 1;
+					const chatId = content.message?.chat?.id;
+					if (!chatId) continue;
 
-						if (commandKey) {
-							const message = await tg_commands[commandKey]();
-							await this.sendMessage(chatId.toString(), message);
-						}
+					const messageText = content.message?.text?.trim();
+					if (!messageText) continue;
 
-						const parsedMessage = parseMessage(messageText) as ParsedMessageString;
-
-						await callback({
-							chatId,
-							offset: this.offset,
-							message: parsedMessage,
-						});
-					}
+					await callback({
+						chatId: chatId.toString(),
+						offset: this.offset,
+						message: messageText,
+					});
 				}
 			} catch (err) {
 				console.error("Polling error:", err);
@@ -288,21 +278,18 @@ class TelegramController {
 		}
 	}
 
-	async waitForReply(chatId: string, timeout: number = 30000): Promise<string | ParsedTelegramUpdate> {
+	async waitForReply(chatId: string, timeout: number = 30000): Promise<string> {
 		const startTime = Date.now();
 
 		while (Date.now() - startTime < timeout) {
 			const updates = await this.getUpdates(this.offset);
 			const results = updates.result ?? [];
+
 			for (const update of results) {
 				this.offset = update.update_id + 1;
+
 				if (update.message && update.message.chat.id.toString() === chatId) {
-					const parsedMessage = parseMessage(update.message.text) as ParsedMessageString;
-					return {
-						chatId: update.message.chat.id,
-						offset: this.offset,
-						message: parsedMessage,
-					};
+					return update.message.text;
 				}
 
 				if (update.callback_query && update.callback_query.message?.chat?.id.toString() === chatId) {

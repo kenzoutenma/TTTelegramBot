@@ -3,6 +3,8 @@ import TikTokService from "./service/tt_service";
 import VideoEncodeClass from "./service/video-encode";
 import { ffmpeg_filters } from "./utils/ffmpeg/generate-filters";
 import logger from "./utils/logger";
+import parseMessage from "#/utils/parseUserMessage";
+import command_reply from "./service/command_reply";
 
 const args = process.argv.slice(2);
 let tokenFromFlag: string | undefined = undefined;
@@ -31,9 +33,14 @@ async function main(): Promise<void> {
 
 	const processedMessages = new Set<string>();
 	await TG_Controller.start(async (content: ParsedTelegramUpdate) => {
-		if (!content.message.url) return;
 
-		const messageKey = `${content.message.url}_${content.offset}`;
+		const isCommand = command_reply(content)
+		if (typeof isCommand == "string") await TG_Controller.sendMessage(content.chatId, isCommand);
+
+		const parsedMessage = parseMessage(content.message) as ParsedMessageString;
+		if (!parsedMessage.url) return;
+
+		const messageKey = `${parsedMessage.url}_${content.offset}`;
 		const { chatId, message } = content;
 
 		if (processedMessages.has(messageKey)) {
@@ -43,22 +50,21 @@ async function main(): Promise<void> {
 			return;
 		}
 
-		const progress = await TG_Controller.sendMessage(chatId.toString(), "finding video...");
+		const progress = await TG_Controller.sendMessage(chatId, "finding video...");
 		deleteThese.push({ chatId: chatId.toString(), messageID: progress.messageID });
 		processedMessages.add(messageKey);
 
-		const video = await TT_Service.captureVideoRequests(content.message.url);
+		const video = await TT_Service.captureVideoRequests(parsedMessage.url);
 		if (typeof video == "string") {
 			await TG_Controller.editMessage(chatId.toString(), progress.messageID, video);
 			return;
 		}
 
-		const { cropTop, cropBottom, startTime, duration, noAudioFlag } = message;
-
+		const { cropTop, cropBottom, startTime, duration, noAudioFlag } = parsedMessage;
 		await TG_Controller.editMessage(chatId.toString(), progress.messageID, "encoding your video...");
 
 		let filters = ffmpeg_filters({
-			extension: content.message.asGif ? "gif" : "mp4",
+			extension: parsedMessage.asGif ? "gif" : "mp4",
 			cropTop: cropTop,
 			cropBottom: cropBottom,
 			start: startTime,
@@ -81,29 +87,27 @@ async function main(): Promise<void> {
 			deleteThese.push({ chatId: chatId.toString(), messageID: cropImageMessage.messageID });
 			const confirmation = await TG_Controller.waitForReply(chatId.toString());
 
-			if (typeof confirmation === "string" && (confirmation.toLowerCase() == "no" || confirmation.toLowerCase() == "dislike")) {
-				await TG_Controller.sendMessage(chatId.toString(), "Crop cancelled. Send new crop values.");
-				return;
-			} else if (typeof confirmation === "object") {
-				const { chatId, message } = confirmation;
-				const { cropTop, cropBottom, startTime, duration, noAudioFlag } = message;
-				filters = ffmpeg_filters({
-					extension: content.message.asGif ? "gif" : "mp4",
-					cropTop: cropTop,
-					cropBottom: cropBottom,
-					start: startTime,
-					duration: duration,
-					noAudio: noAudioFlag,
-				});
-				return await handleCrop();
-			}
+			const isNope = typeof confirmation === "string" && (confirmation.toLowerCase() == "no" || confirmation.toLowerCase() == "dislike")
+			if (isNope) { await TG_Controller.sendMessage(chatId.toString(), "Crop cancelled. Send new crop values."); return; }
+
+			const parsedMessage = parseMessage(confirmation) as ParsedMessageString;
+			const { cropTop, cropBottom, startTime, duration, noAudioFlag } = parsedMessage;
+			filters = ffmpeg_filters({
+				extension: parsedMessage.asGif ? "gif" : "mp4",
+				cropTop: cropTop,
+				cropBottom: cropBottom,
+				start: startTime,
+				duration: duration,
+				noAudio: noAudioFlag,
+			});
+			return await handleCrop();
 		}
 
 		if (cropTop || cropBottom) {
 			await handleCrop();
 		}
 
-		if (content.message.asGif) {
+		if (parsedMessage.asGif) {
 			const save = await encodeVideo.downloadGif(filters);
 			await TG_Controller.sendDocument(chatId.toString(), save.video, save.video_name);
 		} else {

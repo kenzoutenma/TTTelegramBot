@@ -30,12 +30,7 @@ async function main(): Promise<void> {
 	console.log(`✅ Bot ${botToken} started`);
 
 	const processedMessages = new Set<string>();
-
 	await TG_Controller.start(async (content: ParsedTelegramUpdate) => {
-		if (typeof content.message === "string") {
-			await TG_Controller.sendMessage(content.chatId.toString(), content.message);
-			return;
-		}
 		if (!content.message.url) return;
 
 		const messageKey = `${content.message.url}_${content.offset}`;

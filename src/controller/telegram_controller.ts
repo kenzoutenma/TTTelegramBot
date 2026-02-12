@@ -32,13 +32,14 @@ class TelegramController {
 
 						const messageText = content.message?.text?.trim();
 						if (!messageText) continue;
-
-						const commandKey = (Object.keys(tg_commands) as Array<keyof typeof tg_commands>)
-							.find(cmd => messageText.startsWith(cmd));
+						console.log(messageText);
+						const commandKey = (Object.keys(tg_commands) as Array<keyof typeof tg_commands>).find((cmd) =>
+							messageText.startsWith(cmd)
+						);
 
 						if (commandKey) {
 							const message = await tg_commands[commandKey]();
-							callback({ chatId, offset: this.offset, message });
+							await this.sendMessage(chatId.toString(), message);
 						}
 
 						const parsedMessage = parseMessage(messageText) as ParsedMessageString;
@@ -63,10 +64,14 @@ class TelegramController {
 		const params = new URLSearchParams();
 
 		if (offset !== null) params.append("offset", offset.toString());
-		params.append("timeout", "10000");
-
-		const response = await fetch(`${url}?${params.toString()}`);
-		return await response.json();
+		params.append("timeout", "50");
+		try {
+			const response = await fetch(`${url}?${params.toString()}`);
+			console.log(response)
+			return await response.json();
+		} catch (e) {
+			console.log(e)
+		}
 	}
 
 	async sendMessage(chatId: string | number, text: string): Promise<TelegramMessageAction> {
@@ -294,9 +299,9 @@ class TelegramController {
 				if (update.message && update.message.chat.id.toString() === chatId) {
 					const parsedMessage = parseMessage(update.message.text) as ParsedMessageString;
 					return {
-							chatId: update.message.chat.id,
-							offset: this.offset,
-							message: parsedMessage,
+						chatId: update.message.chat.id,
+						offset: this.offset,
+						message: parsedMessage,
 					};
 				}
 

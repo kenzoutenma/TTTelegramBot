@@ -37,23 +37,22 @@ export function ffmpeg_filters({ extension, cropTop, cropBottom, start, duration
 	const offsetY = topValue;
 
 	filters.push(`crop=in_w:in_h-${outHeight}:0:${offsetY}`);
-	filters.push(`scale=720:-2:flags=lanczos`);
 
-	console.log(options)
 	if (options && options.length && options.length > TELEGRAM_SAFE_LIMIT) {
 		const ratio = options.length / TELEGRAM_SAFE_LIMIT;
-		const crf = Math.min(27 + Math.floor((ratio - 1) * 1.2), 30);
-		const baseBitrateKbps = Math.max(800, Math.floor(1200 / ratio));
-		quality.push(
-			"-crf",
-			crf.toString(),
-			"-b:v",
-			`${baseBitrateKbps}k`,
-			"-maxrate",
-			`${Math.round(baseBitrateKbps * 1.3)}k`,
-			"-bufsize",
-			`${Math.round(baseBitrateKbps * 2)}k`
-		);
+		const crf = Math.min(32, Math.max(24, Math.floor(32 + (ratio - 1) * 6)));
+		console.log('\n\n', crf)
+		const baseBitrateKbps = Math.max(350, Math.floor(1400 / Math.pow(ratio, 1.15)));
+		const maxrate = Math.floor(baseBitrateKbps * 1.3);
+		const bufsize = Math.floor(baseBitrateKbps * 2.0);
+		quality.push("-crf", crf.toString(), "-b:v", `${baseBitrateKbps}k`, "-maxrate", `${maxrate}k`, "-bufsize", `${bufsize}k`);
+		if (ratio >= 3) {
+			filters.push(`scale=480:-2:flags=lanczos`);
+		} else {
+			filters.push(`scale=560:-2:flags=lanczos`);
+		}
+	} else {
+		filters.push(`scale=720:-2:flags=lanczos`);
 	}
 
 	const start_crop = start && Number(start) > 60 ? seconds_to_time(Number(start)) : start;

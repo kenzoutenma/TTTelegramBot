@@ -3,6 +3,13 @@ import { join } from "path";
 
 const TELEGRAM_SAFE_LIMIT = 10 * 1024 * 1024 * 0.75;
 
+const seconds_to_time = (totalSeconds: number): string => {
+    const hrs = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+    const secs = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${hrs}:${mins}:${secs}`;
+};
+
 /**
  * Generates ffmpeg filters and video data.
  *
@@ -49,13 +56,19 @@ export function ffmpeg_filters({ extension, cropTop, cropBottom, start, duration
 		);
 	}
 
-	return {
+	const start_crop = start && Number(start) > 60 ? seconds_to_time(Number(start)) : start;
+
+	const data = {
 		input: inputPath,
 		output: outputPath,
-		start: start || "0",
+		start: start_crop || "0",
 		duration: duration,
 		stringified: filters,
 		stringifiedQuality: quality,
 		noAudio: noAudio,
-	};
+	}
+
+	console.log(data)
+
+	return data;
 }

@@ -1,3 +1,10 @@
+const seconds_to_time = (totalSeconds: number): string => {
+    const hrs = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+    const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+    const secs = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${hrs}:${mins}:${secs}`;
+};
+
 function parseMessage(text: string): ParsedMessageString | null {
     const urlMatch = text.match(/https?:\/\/\S+/);
 
@@ -6,6 +13,10 @@ function parseMessage(text: string): ParsedMessageString | null {
     const durationMatch = text.match(/-duration\s+([0-9:.]+)/);
 
     const normalizeTime = (time: string) => {
+        if (Number(time) && Number(time) > 60) {
+            return seconds_to_time(Number(time))
+        }
+
         const parts = time.split(":");
 
         const padSeconds = (sec: string) => {
@@ -15,15 +26,9 @@ function parseMessage(text: string): ParsedMessageString | null {
                 : int.padStart(2, "0");
         };
 
-        if (parts.length === 3)
-            return `${parts[0].padStart(2, "0")}:${parts[1].padStart(
-                2,
-                "0"
-            )}:${padSeconds(parts[2])}`;
-        if (parts.length === 2)
-            return `00:${parts[0].padStart(2, "0")}:${padSeconds(parts[1])}`;
-        return `00:00:${padSeconds(parts[0])}`;
-    };
+        if (parts.length === 3) return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}:${padSeconds(parts[2])}`;
+        if (parts.length === 2) return `00:${parts[0].padStart(2, "0")}:${padSeconds(parts[1])}`;
+    }
 
     const byTwoSide = text.match(/-vertical\s+([0-9:.]+)/);
     const cropTop = text.match(/-top\s+([0-9:.]+)/) || byTwoSide;

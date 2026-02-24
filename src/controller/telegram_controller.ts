@@ -38,13 +38,13 @@ class TelegramController {
 
 						if (commandKey) {
 							const message = await tg_commands[commandKey]();
-							callback({ chatId, offset: this.offset, message });
+							callback({ chatId: chatId.toString(), offset: this.offset, message });
 						}
 
 						const parsedMessage = parseMessage(messageText) as ParsedMessageString;
 
 						await callback({
-							chatId,
+							chatId: chatId.toString(),
 							offset: this.offset,
 							message: parsedMessage,
 						});
@@ -290,13 +290,12 @@ class TelegramController {
 			const updates = await this.getUpdates(this.offset);
 			const results = updates.result ?? [];
 			for (const update of results) {
-				this.offset = update.update_id + 1;
 				if (update.message && update.message.chat.id.toString() === chatId) {
 					const parsedMessage = parseMessage(update.message.text) as ParsedMessageString;
 					return {
-							chatId: update.message.chat.id,
-							offset: this.offset,
-							message: parsedMessage,
+						chatId: update.message.chat.id,
+						offset: this.offset,
+						message: parsedMessage,
 					};
 				}
 

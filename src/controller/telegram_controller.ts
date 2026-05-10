@@ -1,4 +1,3 @@
-import { tg_commands } from "#/configs/commands";
 import parseMessage from "#/utils/parseUserMessage";
 import axios from "axios";
 import "dotenv/config";
@@ -14,6 +13,14 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 
+export interface TelegramMessageCallbackObj {
+  chatId: string;
+  message: string;
+  command?: string;
+  media?: string;
+  params?: ParsedMessageString;
+}
+
 class TelegramController {
   private baseUrl: string;
   private token: string;
@@ -25,7 +32,9 @@ class TelegramController {
     this.offset = 0;
   }
 
-  async start(callback: (content: ParsedTelegramUpdate) => Promise<void>) {
+  async start(
+    callback: (content: TelegramMessageCallbackObj) => Promise<void>,
+  ) {
     console.log("✅ Bot is running...");
 
     while (true) {
@@ -36,51 +45,38 @@ class TelegramController {
             this.offset = content.update_id + 1;
             const chatId = content.message?.chat?.id;
 
-            if (!chatId) continue;
+            const data: TelegramMessageCallbackObj = {
+              chatId: chatId.toString(),
+              message:
+                content.message?.caption?.trim() ||
+                content.message?.text?.trim() ||
+                "",
+            };
 
             const media = content.message?.photo
               ? content.message.photo[content.message.photo.length - 1]
               : content.message?.animation || content.message?.video;
 
-            if (media) {
-              const tempFile = await this.getFileById(media.file_id);
-
-              if (tempFile) {
-                await callback({
-                  chatId: chatId.toString(),
-                  offset: this.offset,
-                  message: content.message?.caption?.trim() || "",
-                  image: tempFile,
-                });
-              }
-              continue;
-            }
+            if (media) data.media = await this.getFileById(media.file_id);
 
             const messageText = content.message?.text?.trim();
             if (!messageText) continue;
 
-            const commandKey = (
-              Object.keys(tg_commands) as Array<keyof typeof tg_commands>
-            ).find((cmd) => messageText.startsWith(cmd));
+            const commandKey = messageText.startsWith("/");
 
             if (commandKey) {
-              const message = await tg_commands[commandKey]();
-              callback({
-                chatId: chatId.toString(),
-                offset: this.offset,
-                message,
-              });
+              const parts = messageText.split(" ");
+              data.command = parts[0];
+              data.message = parts.slice(0, 1).join(" ");
             }
 
             const parsedMessage = parseMessage(
               messageText,
             ) as ParsedMessageString;
 
-            await callback({
-              chatId: chatId.toString(),
-              offset: this.offset,
-              message: parsedMessage,
-            });
+            data.params = parsedMessage;
+
+            await callback(data);
           }
         }
       } catch (err) {

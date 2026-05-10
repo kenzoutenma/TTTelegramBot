@@ -39,7 +39,8 @@ function parseMessage(text: string): ParsedMessageString | null {
   const cropBot = text.match(/-bot\s+([0-9:.]+)/) || byTwoSide;
   const gifFlag = /-gif\b/.test(text);
   const noAudioFlag = /-na\b/.test(text);
-  const sticker = /-sticker\b/.test(text);
+  const webp = /-webp\b/.test(text);
+  const webm = /-webm\b/.test(text);
 
   return {
     url,
@@ -49,7 +50,8 @@ function parseMessage(text: string): ParsedMessageString | null {
     cropBottom: cropBot ? cropBot[1] : undefined,
     asGif: gifFlag,
     noAudioFlag: noAudioFlag,
-    asSticker: sticker,
+    asWebp: webp,
+    asWebm: webm,
   };
 }
 

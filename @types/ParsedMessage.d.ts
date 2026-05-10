@@ -5,7 +5,8 @@ interface ParsedMessageString {
   cropTop?: string;
   cropBottom?: string;
   asGif?: boolean;
-  asSticker?: boolean;
+  asWebp?: boolean;
+  asWebm?: boolean;
   noAudioFlag: boolean;
 }
 

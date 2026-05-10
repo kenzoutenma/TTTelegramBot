@@ -1,20 +1,22 @@
 interface ParsedMessageString {
-    url: string | null;
-    startTime?: string;
-    duration?: string;
-    cropTop?: string;
-    cropBottom?: string;
-    asGif?: boolean;
-    noAudioFlag: boolean
+  url: string | null;
+  startTime?: string;
+  duration?: string;
+  cropTop?: string;
+  cropBottom?: string;
+  asGif?: boolean;
+  asSticker?: boolean;
+  noAudioFlag: boolean;
 }
 
 interface ParsedTelegramUpdate {
-    chatId: string;
-    offset: number;
-    message: string | ParsedMessageString;
+  chatId: string;
+  offset: number;
+  message: string | ParsedMessageString;
+  image?: string;
 }
 
 interface TelegramMessageAction {
-    chatID: string;
-    messageID: string;
+  chatID: string;
+  messageID: string;
 }

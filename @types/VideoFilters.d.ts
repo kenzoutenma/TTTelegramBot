@@ -1,26 +1,27 @@
 interface videoData {
-	length: number;
-	width?: number | undefined;
-	height?: number | undefined;
+  length: number;
+  width?: number | undefined;
+  height?: number | undefined;
 }
 
 interface filterIn {
-	extension: "gif" | "mp4" | "jpg",
-	cropTop?: string | undefined;
-	cropBottom?: string | undefined;
-	start?: string | undefined;
-	duration?: string | undefined;
-	noAudio?: boolean | undefined;
-	options?: videoData | null;
+  extension: "gif" | "mp4" | "jpg";
+  cropTop?: string | undefined;
+  cropBottom?: string | undefined;
+  start?: string | undefined;
+  duration?: string | undefined;
+  noAudio?: boolean | undefined;
+  options: videoData;
 }
 
 interface filtered {
-	input: string;
-	output: string;
-	stringified: string[];
-	stringifiedQuality: string[];
-	start: string;
-	duration: string | undefined;
-	noAudio?: boolean | undefined;
-	options?: videoData | null;
+  input: string;
+  output: string;
+  stringified: string[];
+  stringifiedQuality: string[];
+  start: string;
+  duration: string | undefined;
+  noAudio?: boolean | undefined;
+  options?: videoData | null;
+  fit?: boolean;
 }

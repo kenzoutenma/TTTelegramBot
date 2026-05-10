@@ -4,310 +4,408 @@ import axios from "axios";
 import "dotenv/config";
 import FormData from "form-data";
 import { PassThrough } from "stream";
-import { TelegramResponse, TelegramResponseSingle } from "../../@types/TelegramResponse";
+import {
+  TelegramResponse,
+  TelegramResponseSingle,
+} from "../../@types/TelegramResponse";
 import logger from "../utils/logger";
 
+import fs from "fs/promises";
+import os from "os";
+import path from "path";
+
 class TelegramController {
-	private baseUrl: string;
-	private token: string;
-	private offset: number;
+  private baseUrl: string;
+  private token: string;
+  private offset: number;
 
-	constructor(token: string) {
-		this.token = token;
-		this.baseUrl = `https://api.telegram.org/bot${token}/`;
-		this.offset = 0;
-	}
+  constructor(token: string) {
+    this.token = token;
+    this.baseUrl = `https://api.telegram.org/bot${token}/`;
+    this.offset = 0;
+  }
 
-	async start(callback: (content: ParsedTelegramUpdate) => Promise<void>) {
-		console.log("✅ Bot is running...");
+  async start(callback: (content: ParsedTelegramUpdate) => Promise<void>) {
+    console.log("✅ Bot is running...");
 
-		while (true) {
-			try {
-				const update: TelegramResponse = await this.getUpdates(this.offset);
-				if (update.result && Array.isArray(update.result)) {
-					for (const content of update.result) {
-						this.offset = content.update_id + 1;
-						const chatId = content.message?.chat?.id;
-						if (!chatId) continue;
+    while (true) {
+      try {
+        const update: TelegramResponse = await this.getUpdates(this.offset);
+        if (update.result && Array.isArray(update.result)) {
+          for (const content of update.result) {
+            this.offset = content.update_id + 1;
+            const chatId = content.message?.chat?.id;
 
-						const messageText = content.message?.text?.trim();
-						if (!messageText) continue;
+            if (!chatId) continue;
 
-						const commandKey = (Object.keys(tg_commands) as Array<keyof typeof tg_commands>)
-							.find(cmd => messageText.startsWith(cmd));
+            const media = content.message?.photo
+              ? content.message.photo[content.message.photo.length - 1]
+              : content.message?.animation || content.message?.video;
 
-						if (commandKey) {
-							const message = await tg_commands[commandKey]();
-							callback({ chatId: chatId.toString(), offset: this.offset, message });
-						}
+            if (media) {
+              const tempFile = await this.getFileById(media.file_id);
 
-						const parsedMessage = parseMessage(messageText) as ParsedMessageString;
+              if (tempFile) {
+                await callback({
+                  chatId: chatId.toString(),
+                  offset: this.offset,
+                  message: content.message?.caption?.trim() || "",
+                  image: tempFile,
+                });
+              }
+              continue;
+            }
 
-						await callback({
-							chatId: chatId.toString(),
-							offset: this.offset,
-							message: parsedMessage,
-						});
-					}
-				}
-			} catch (err) {
-				console.error("Polling error:", err);
-			}
+            const messageText = content.message?.text?.trim();
+            if (!messageText) continue;
 
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-		}
-	}
+            const commandKey = (
+              Object.keys(tg_commands) as Array<keyof typeof tg_commands>
+            ).find((cmd) => messageText.startsWith(cmd));
 
-	async getUpdates(offset: number | null = null): Promise<any> {
-		const url = `${this.baseUrl}getUpdates`;
-		const params = new URLSearchParams();
+            if (commandKey) {
+              const message = await tg_commands[commandKey]();
+              callback({
+                chatId: chatId.toString(),
+                offset: this.offset,
+                message,
+              });
+            }
 
-		if (offset !== null) params.append("offset", offset.toString());
-		params.append("timeout", "10000");
+            const parsedMessage = parseMessage(
+              messageText,
+            ) as ParsedMessageString;
 
-		const response = await fetch(`${url}?${params.toString()}`);
-		return await response.json();
-	}
+            await callback({
+              chatId: chatId.toString(),
+              offset: this.offset,
+              message: parsedMessage,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Polling error:", err);
+      }
 
-	async sendMessage(chatId: string | number, text: string): Promise<TelegramMessageAction> {
-		const url = `${this.baseUrl}sendMessage`;
-		const params = new URLSearchParams({
-			chat_id: chatId.toString(),
-			text,
-			parse_mode: "HTML",
-		});
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
 
-		const response = await fetch(url, {
-			method: "POST",
-			body: params,
-		});
+  async getUpdates(offset: number | null = null): Promise<any> {
+    const url = `${this.baseUrl}getUpdates`;
+    const params = new URLSearchParams();
 
-		const data = (await response.json()) as TelegramResponseSingle;
-		const messageId = data.result?.message_id.toString();
-		logger({
-			message: `Sending message ${messageId} to ${chatId}: ${text.split(" ").slice(0, 5).join(" ")}...`,
-			emoji: "change",
-		});
-		return { chatID: chatId.toString(), messageID: messageId };
-	}
+    if (offset !== null) params.append("offset", offset.toString());
+    params.append("timeout", "10000");
 
-	async deleteMessage(chatId: string | number, messageId: string): Promise<TelegramMessageAction> {
-		const url = `${this.baseUrl}deleteMessage`;
-		const payload = new URLSearchParams({
-			chat_id: chatId.toString(),
-			message_id: messageId.toString(),
-		});
+    const response = await fetch(`${url}?${params.toString()}`);
+    return await response.json();
+  }
 
-		const response = await fetch(url, {
-			method: "POST",
-			body: payload,
-		});
+  async sendMessage(
+    chatId: string | number,
+    text: string,
+  ): Promise<TelegramMessageAction> {
+    const url = `${this.baseUrl}sendMessage`;
+    const params = new URLSearchParams({
+      chat_id: chatId.toString(),
+      text,
+      parse_mode: "HTML",
+    });
 
-		console.log(await response.json());
+    const response = await fetch(url, {
+      method: "POST",
+      body: params,
+    });
 
-		logger({
-			message: `Deleted message ${messageId} in ${chatId}`,
-			emoji: "change",
-		});
-		return { chatID: chatId.toString(), messageID: messageId };
-	}
+    const data = (await response.json()) as TelegramResponseSingle;
+    const messageId = data.result?.message_id.toString();
+    logger({
+      message: `Sending message ${messageId} to ${chatId}: ${text.split(" ").slice(0, 5).join(" ")}...`,
+      emoji: "change",
+    });
+    return { chatID: chatId.toString(), messageID: messageId };
+  }
 
-	async editMessage(chatId: string | number, messageId: string, text: string): Promise<TelegramMessageAction> {
-		const url = `${this.baseUrl}editMessageText`;
-		const payload = new URLSearchParams({
-			chat_id: chatId.toString(),
-			message_id: messageId.toString(),
-			text,
-		});
+  async deleteMessage(
+    chatId: string | number,
+    messageId: string,
+  ): Promise<TelegramMessageAction> {
+    const url = `${this.baseUrl}deleteMessage`;
+    const payload = new URLSearchParams({
+      chat_id: chatId.toString(),
+      message_id: messageId.toString(),
+    });
 
-		const response = await fetch(url, {
-			method: "POST",
-			body: payload,
-		});
+    const response = await fetch(url, {
+      method: "POST",
+      body: payload,
+    });
 
-		logger({
-			message: `Edited message ${messageId} in ${chatId} with new text: ${text}`,
-			emoji: "change",
-		});
+    console.log(await response.json());
 
-		return { chatID: chatId.toString(), messageID: messageId };
-	}
+    logger({
+      message: `Deleted message ${messageId} in ${chatId}`,
+      emoji: "change",
+    });
+    return { chatID: chatId.toString(), messageID: messageId };
+  }
 
-	async sendVideo(
-		chatId: string | number,
-		videoBuffer: Buffer,
-		options?: {
-			duration?: number;
-			width?: number;
-			height?: number;
-			thumbnailBuffer?: Buffer;
-			caption?: string;
-			supportsStreaming?: boolean;
-		}
-	): Promise<any> {
-		const url = `${this.baseUrl}sendVideo`;
-		const form = new FormData();
+  async editMessage(
+    chatId: string | number,
+    messageId: string,
+    text: string,
+  ): Promise<TelegramMessageAction> {
+    const url = `${this.baseUrl}editMessageText`;
+    const payload = new URLSearchParams({
+      chat_id: chatId.toString(),
+      message_id: messageId.toString(),
+      text,
+    });
 
-		const videoStream = new PassThrough();
-		videoStream.end(videoBuffer);
+    const response = await fetch(url, {
+      method: "POST",
+      body: payload,
+    });
 
-		form.append("chat_id", chatId.toString());
-		form.append("video", videoStream, {
-			filename: "video.mp4",
-			contentType: "video/mp4",
-			knownLength: videoBuffer.length,
-		});
+    logger({
+      message: `Edited message ${messageId} in ${chatId} with new text: ${text}`,
+      emoji: "change",
+    });
 
-		if (options?.duration) form.append("duration", options.duration.toString());
-		if (options?.width) form.append("width", options.width.toString());
-		if (options?.height) form.append("height", options.height.toString());
-		if (options?.caption) form.append("caption", options.caption);
-		if (options?.supportsStreaming) form.append("supports_streaming", "true");
+    return { chatID: chatId.toString(), messageID: messageId };
+  }
 
-		if (options?.thumbnailBuffer) {
-			const thumbStream = new PassThrough();
-			thumbStream.end(options.thumbnailBuffer);
-			form.append("thumbnail", thumbStream, {
-				filename: "thumb.jpg",
-				contentType: "image/jpeg",
-				knownLength: options.thumbnailBuffer.length,
-			});
-		}
+  async sendVideo(
+    chatId: string | number,
+    videoBuffer: Buffer,
+    options?: {
+      duration?: number;
+      width?: number;
+      height?: number;
+      thumbnailBuffer?: Buffer;
+      caption?: string;
+      supportsStreaming?: boolean;
+    },
+  ): Promise<any> {
+    const url = `${this.baseUrl}sendVideo`;
+    const form = new FormData();
 
-		try {
-			const response = await axios.post(url, form, {
-				headers: form.getHeaders(),
-				maxBodyLength: Infinity,
-			});
-			return response.data;
-		} catch (error: any) {
-			if (error.response) {
-				console.error("Telegram responded with error", JSON.stringify(error.response.data, null, 2));
-			} else {
-				console.error("Axios error", error.message);
-			}
-			throw error;
-		}
-	}
+    form.append("chat_id", chatId.toString());
+    form.append("video", videoBuffer, {
+      filename: "video.mp4",
+      contentType: "video/mp4",
+    });
 
-	async sendDocument(chatId: string | number, fileBuffer: Buffer, filename: string = "video.mp4"): Promise<any> {
-		const url = `${this.baseUrl}sendDocument`;
-		const form = new FormData();
+    if (options?.thumbnailBuffer) {
+      form.append("thumbnail", options.thumbnailBuffer, {
+        filename: "thumb.jpg",
+        contentType: "image/jpeg",
+      });
+    }
 
-		const stream = new PassThrough();
-		stream.end(fileBuffer);
+    if (options?.width) form.append("width", options.width.toString());
+    if (options?.height) form.append("height", options.height.toString());
+    if (options?.duration) form.append("duration", options.duration.toString());
+    if (options?.supportsStreaming) form.append("supports_streaming", "true");
+    if (options?.caption) form.append("caption", options.caption);
 
-		form.append("chat_id", chatId.toString());
-		form.append("document", stream, {
-			filename,
-			contentType: "video/mp4",
-			knownLength: fileBuffer.length,
-		});
+    try {
+      const response = await axios.post(url, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: Infinity,
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        console.error(
+          "Telegram responded with error",
+          JSON.stringify(error.response.data, null, 2),
+        );
+      } else {
+        console.error("Axios error", error.message);
+      }
+      throw error;
+    }
+  }
 
-		try {
-			const response = await axios.post(url, form, {
-				headers: form.getHeaders(),
-				maxBodyLength: Infinity,
-			});
+  async sendDocument(
+    chatId: string | number,
+    fileBuffer: Buffer,
+    filename: string = "video.mp4",
+  ): Promise<any> {
+    const url = `${this.baseUrl}sendDocument`;
+    const form = new FormData();
 
-			return response.data;
-		} catch (error: any) {
-			if (error.response) {
-				logger({
-					message: "Telegram responded with error",
-					error: error.response.data,
-					emoji: "error",
-					pickColor: "red",
-				});
-			} else {
-				logger({
-					message: "Axios error",
-					error: error.message,
-					emoji: "error",
-					pickColor: "red",
-				});
-			}
-			throw error;
-		}
-	}
+    const stream = new PassThrough();
+    stream.end(fileBuffer);
 
-	async sendPhoto(chatId: string | number, photoBuffer: Buffer, filename: string = "photo.jpg"): Promise<any> {
-		const url = `${this.baseUrl}sendPhoto`;
-		const form = new FormData();
+    form.append("chat_id", chatId.toString());
+    form.append("document", stream, {
+      filename,
+      contentType: "video/mp4",
+      knownLength: fileBuffer.length,
+    });
 
-		const stream = new PassThrough();
-		stream.end(photoBuffer);
+    try {
+      const response = await axios.post(url, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: Infinity,
+      });
 
-		form.append("chat_id", chatId.toString());
-		form.append("photo", stream, {
-			filename,
-			contentType: "image/jpeg",
-			knownLength: photoBuffer.length,
-		});
+      return response.data;
+    } catch (error: any) {
+      if (error.response) {
+        logger({
+          message: "Telegram responded with error",
+          error: error.response.data,
+          emoji: "error",
+          pickColor: "red",
+        });
+      } else {
+        logger({
+          message: "Axios error",
+          error: error.message,
+          emoji: "error",
+          pickColor: "red",
+        });
+      }
+      throw error;
+    }
+  }
 
-		const keyboard = {
-			inline_keyboard: [
-				[
-					{ text: "👍", callback_data: "like" },
-					{ text: "👎", callback_data: "dislike" },
-				],
-			],
-		};
+  async sendPhoto(
+    chatId: string | number,
+    photoBuffer: Buffer,
+    filename: string = "photo.jpg",
+  ): Promise<any> {
+    const url = `${this.baseUrl}sendPhoto`;
+    const form = new FormData();
 
-		form.append("reply_markup", JSON.stringify(keyboard));
+    const stream = new PassThrough();
+    stream.end(photoBuffer);
 
-		try {
-			const response = await axios.post(url, form, {
-				headers: form.getHeaders(),
-				maxBodyLength: Infinity,
-			});
-			const messageId = response.data.result?.message_id.toString();
-			return { chatID: chatId.toString(), messageID: messageId };
-		} catch (error: any) {
-			if (error.response) {
-				logger({
-					message: "Telegram responded with error",
-					error: error.response.data,
-					emoji: "error",
-					pickColor: "red",
-				});
-			} else {
-				logger({
-					message: "Axios error",
-					error: error.message,
-					emoji: "error",
-					pickColor: "red",
-				});
-			}
-			throw error;
-		}
-	}
+    form.append("chat_id", chatId.toString());
+    form.append("photo", stream, {
+      filename,
+      contentType: "image/jpeg",
+      knownLength: photoBuffer.length,
+    });
 
-	async waitForReply(chatId: string, timeout: number = 30000): Promise<string | ParsedTelegramUpdate> {
-		const startTime = Date.now();
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: "👍", callback_data: "like" },
+          { text: "👎", callback_data: "dislike" },
+        ],
+      ],
+    };
 
-		while (Date.now() - startTime < timeout) {
-			const updates = await this.getUpdates(this.offset);
-			const results = updates.result ?? [];
-			for (const update of results) {
-				if (update.message && update.message.chat.id.toString() === chatId) {
-					const parsedMessage = parseMessage(update.message.text) as ParsedMessageString;
-					return {
-						chatId: update.message.chat.id,
-						offset: this.offset,
-						message: parsedMessage,
-					};
-				}
+    form.append("reply_markup", JSON.stringify(keyboard));
 
-				if (update.callback_query && update.callback_query.message?.chat?.id.toString() === chatId) {
-					return update.callback_query.data || "";
-				}
-			}
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-		}
+    try {
+      const response = await axios.post(url, form, {
+        headers: form.getHeaders(),
+        maxBodyLength: Infinity,
+      });
+      const messageId = response.data.result?.message_id.toString();
+      return { chatID: chatId.toString(), messageID: messageId };
+    } catch (error: any) {
+      if (error.response) {
+        logger({
+          message: "Telegram responded with error",
+          error: error.response.data,
+          emoji: "error",
+          pickColor: "red",
+        });
+      } else {
+        logger({
+          message: "Axios error",
+          error: error.message,
+          emoji: "error",
+          pickColor: "red",
+        });
+      }
+      throw error;
+    }
+  }
 
-		throw new Error("Reply timeout exceeded");
-	}
+  async waitForReply(
+    chatId: string,
+    timeout: number = 30000,
+  ): Promise<string | ParsedTelegramUpdate> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      const updates = await this.getUpdates(this.offset);
+      const results = updates.result ?? [];
+      for (const update of results) {
+        if (update.message && update.message.chat.id.toString() === chatId) {
+          const parsedMessage = parseMessage(
+            update.message.text,
+          ) as ParsedMessageString;
+          return {
+            chatId: update.message.chat.id,
+            offset: this.offset,
+            message: parsedMessage,
+          };
+        }
+
+        if (
+          update.callback_query &&
+          update.callback_query.message?.chat?.id.toString() === chatId
+        ) {
+          return update.callback_query.data || "";
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+
+    throw new Error("Reply timeout exceeded");
+  }
+
+  async getFileById(fileId: string): Promise<string> {
+    try {
+      const getFileUrl = `${this.baseUrl}getFile?file_id=${fileId}`;
+      const response = await fetch(getFileUrl);
+      const body = (await response.json()) as {
+        ok: boolean;
+        description?: string;
+        result?: {
+          file_path: string;
+        };
+      };
+
+      if (!body.ok || !body.result) {
+        throw new Error(`Telegram API Error: ${body.description}`);
+      }
+
+      const filePath = body.result.file_path;
+      const downloadURL = `https://api.telegram.org/file/bot${this.token}/${filePath}`;
+
+      const fileResponse = await fetch(downloadURL);
+      if (!fileResponse.ok)
+        throw new Error(`Failed to download file from ${downloadURL}`);
+
+      const arrayBuffer = await fileResponse.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      const extension = path.extname(filePath);
+      const tempPath = path.join(os.tmpdir(), `tg_file_${fileId}${extension}`);
+
+      await fs.writeFile(tempPath, buffer);
+
+      logger({
+        message: `File ${fileId} downloaded temporarily to ${tempPath}`,
+        emoji: "change",
+      });
+
+      return tempPath;
+    } catch (error) {
+      console.error("Error in getFileById:", error);
+      throw error;
+    }
+  }
 }
 
 export default TelegramController;

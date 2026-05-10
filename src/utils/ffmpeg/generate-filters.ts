@@ -1,14 +1,7 @@
 import { tmpdir } from "os";
 import { join } from "path";
 
-const TELEGRAM_SAFE_LIMIT = 10 * 1024 * 1024 * 0.75;
-
-const seconds_to_time = (totalSeconds: number): string => {
-    const hrs = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
-    const mins = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-    const secs = (totalSeconds % 60).toString().padStart(2, '0');
-    return `${hrs}:${mins}:${secs}`;
-};
+const TELEGRAM_SAFE_LIMIT = 10 * 1024 * 1024;
 
 /**
  * Generates ffmpeg filters and video data.
@@ -22,52 +15,58 @@ const seconds_to_time = (totalSeconds: number): string => {
  * @param {{ length: number } | undefined} options - Extra video metadata (e.g., file size in bytes).
  * @returns {filtered} The generated filter configuration and paths.
  */
-export function ffmpeg_filters({ extension, cropTop, cropBottom, start, duration, noAudio, options }: filterIn): filtered {
-	const date = Date.now();
-	const inputPath = join(tmpdir(), `${date}_input.mp4`);
-	const outputPath = join(tmpdir(), `${date}_output.${extension}`);
+export function ffmpeg_filters({
+  extension,
+  cropTop,
+  cropBottom,
+  start,
+  duration,
+  noAudio,
+  options,
+}: filterIn): filtered {
+  const date = Date.now();
 
-	const filters: string[] = [];
-	const quality: string[] = [];
+  const filters: string[] = [];
+  const quality: string[] = [];
 
-	const botValue = cropBottom ? Number(cropBottom) : 0;
-	const topValue = cropTop ? Number(cropTop) : 0;
+  const botValue = cropBottom ? Number(cropBottom) : 0;
+  const topValue = cropTop ? Number(cropTop) : 0;
 
-	const outHeight = topValue + botValue;
-	const offsetY = topValue;
+  filters.push(`crop=in_w:in_h-${topValue + botValue}:0:${topValue}`);
+  filters.push(`scale=720:-2:flags=lanczos`);
 
-	filters.push(`crop=in_w:in_h-${outHeight}:0:${offsetY}`);
+  console.log(`${options.length / 1024 / 1024}mb`);
+  if (options.length / 1024 / 1024 < TELEGRAM_SAFE_LIMIT) {
+    const data = {
+      input: join(tmpdir(), `${date}_input.mp4`),
+      output: join(tmpdir(), `${date}_output.${extension}`),
+      start: start || "0",
+      duration: duration,
+      stringified: filters,
+      stringifiedQuality: quality,
+      noAudio: noAudio,
+      fit: true,
+    };
+    return data;
+  }
 
-	if (options && options.length && options.length > TELEGRAM_SAFE_LIMIT) {
-		const ratio = options.length / TELEGRAM_SAFE_LIMIT;
-		const crf = Math.min(32, Math.max(24, Math.floor(32 + (ratio - 1) * 6)));
-		console.log('\n\n', crf)
-		const baseBitrateKbps = Math.max(350, Math.floor(1400 / Math.pow(ratio, 1.15)));
-		const maxrate = Math.floor(baseBitrateKbps * 1.3);
-		const bufsize = Math.floor(baseBitrateKbps * 2.0);
-		quality.push("-crf", crf.toString(), "-b:v", `${baseBitrateKbps}k`, "-maxrate", `${maxrate}k`, "-bufsize", `${bufsize}k`);
-		if (ratio >= 3) {
-			filters.push(`scale=480:-2:flags=lanczos`);
-		} else {
-			filters.push(`scale=560:-2:flags=lanczos`);
-		}
-	} else {
-		filters.push(`scale=720:-2:flags=lanczos`);
-	}
+  const ratio = options.length / TELEGRAM_SAFE_LIMIT;
+  const state = 2.5;
+  console.log("RATIO: ", ratio, ratio * state);
 
-	const start_crop = start && Number(start) > 60 ? seconds_to_time(Number(start)) : start;
+  const crf = Math.max(20 + Math.floor(ratio * state), 25);
+  console.log("CRF: ", crf);
+  quality.push("-crf", crf.toString());
 
-	const data = {
-		input: inputPath,
-		output: outputPath,
-		start: start_crop || "0",
-		duration: duration,
-		stringified: filters,
-		stringifiedQuality: quality,
-		noAudio: noAudio,
-	}
+  const data = {
+    input: join(tmpdir(), `${date}_input.mp4`),
+    output: join(tmpdir(), `${date}_output.${extension}`),
+    start: start || "0",
+    duration: duration,
+    stringified: filters,
+    stringifiedQuality: quality,
+    noAudio: noAudio,
+  };
 
-	console.log(data)
-
-	return data;
+  return data;
 }
